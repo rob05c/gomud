@@ -32,7 +32,6 @@ type telnet_state struct {
 	LocalEcho bool
 }
  
-
 func handleTelnet(option byte, optionInfo byte, c net.Conn) {
 	// for now, reject all requests. We're very contrary.
 	if option == DO || option == WILL {
