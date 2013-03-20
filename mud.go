@@ -2,8 +2,6 @@ package main
 
 const defaultPort = 9241
 
-const commandRejectMessage = "I don't understand."
-
 func initialize() {
 	initCommands()
 	rooms[0] = &room {
