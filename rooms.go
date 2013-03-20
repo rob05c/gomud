@@ -3,7 +3,7 @@ import (
 	"bytes"
 )
 
-var rooms = map[int] *room {} 
+
 //
 // room
 //
@@ -11,7 +11,7 @@ type room struct {
 	id int
 	name string
 	description string
-	exits map[Direction] *room
+	exits map[Direction] int
 }
 
 func (r room) printDirections() string {
@@ -22,11 +22,13 @@ func (r room) printDirections() string {
 	} else {
 		buffer.WriteString("You see exits leading ")
 		writeComma := false;
-		for i, _ := range r.exits {
+		/// @todo print "and" before the last direction."
+		/// @todo print "a single exit" for single exit rooms
+		for d := range r.exits {
 			if writeComma {
 				buffer.WriteString(", ")
 			}
-				buffer.WriteString(i.String())
+			buffer.WriteString(d.String())
 			writeComma = true
 		}
 		buffer.WriteString(".")
@@ -64,15 +66,62 @@ func (r room) PrintBrief() string {
 	return buffer.String()
 }
 
-func (r *room) NewRoom(d Direction, newName string, newDesc string) room {
+func (r *room) NewRoom(d Direction, newName string, newDesc string) {
 	newRoom := room {
-		id: len(rooms),
 		name: newName,
 		description: newDesc,
-		exits: make(map[Direction] *room),
+		exits: make(map[Direction] int),
 	}
-	rooms[newRoom.id] = &newRoom
-	r.exits[d] = &newRoom
-	newRoom.exits[d.reverse()] = r
-	return newRoom
+	newRoom.exits[d.reverse()] = r.id
+	newRoomId := createRoom(newRoom)
+	roomChange<- struct {id int; modify func(*room)} {r.id, func(r *room){
+			r.exits[d] = newRoomId
+	}}
+}
+
+func getRoom(roomid int) (newroom room, exists bool) {
+	responseChan := make(chan struct{room; bool})
+	requestRoom<- struct {id int; response chan struct {room; bool}}{roomid, responseChan}
+	response := <-responseChan
+	return response.room, response.bool
+}
+
+func createRoom(r room) int {
+	responseChan := make(chan int)
+	roomCreate<- struct{newroom room; response chan int} {r, responseChan}
+	newRoomId := <-responseChan
+	return newRoomId
+}
+
+/// @todo pass these around, and remove from global scope
+var requestRoom = make(chan struct {id int; response chan struct {room; bool}})
+/// anything in modify besides modifying the room MUST be called in a goroutine. Else, deadlock.
+var roomChange = make(chan struct {id int; modify func(*room)})
+var roomCreate = make(chan struct {newroom room; response chan int})
+
+func roomManager() {
+	var rooms = map[int] *room {} 
+	for {
+		select {
+		case r := <-requestRoom:
+			rroom, exists := rooms[r.id]
+			var roomCopy room
+			if exists {
+				roomCopy = *rroom
+			} else {
+				roomCopy = room{id: -1}
+			}
+			r.response<- struct {room; bool} {roomCopy, exists}
+		case m := <-roomChange:
+			croom, exists := rooms[m.id]
+			if !exists {
+				continue
+			}
+			m.modify(croom)
+		case n := <-roomCreate:
+			n.newroom.id = len(rooms)
+			rooms[n.newroom.id] = &n.newroom
+			n.response<- n.newroom.id
+		}
+	}
 }

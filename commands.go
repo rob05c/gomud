@@ -14,15 +14,19 @@ func walk(d Direction, c net.Conn, playerName string) {
 		fmt.Println("walk called with nonplayer '" + playerName + "'")
 		return
 	}
-	currentRoom := rooms[player.roomId]
-	newRoom, ok := currentRoom.exits[d]
+	currentRoom, roomExists := getRoom(player.roomId)
+	if !roomExists {
+		fmt.Println("walk called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId))
+		return
+	}
+	newRoomId, ok := currentRoom.exits[d]
 	if !ok {
 		const invalidDirectionMessage = "You faceplant a wall. Suck."
 		c.Write([]byte(invalidDirectionMessage + "\n"))
 		return
 	}
 	playerChange<- struct {key string; modify func(*player_state)} {player.name, func(player *player_state){
-			player.roomId = newRoom.id
+			player.roomId = newRoomId
 			go look(c, playerName)
 	}}
 }
@@ -34,7 +38,12 @@ func look(c net.Conn, playerName string) {
 		return
 	}
 
-	currentRoom := rooms[player.roomId]
+	currentRoom, roomExists := getRoom(player.roomId)
+	if !roomExists {
+		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId))
+		return
+	}
+
 	c.Write([]byte(currentRoom.Print() + "\n"))
 }
 
@@ -44,7 +53,12 @@ func quicklook(c net.Conn, playerName string) {
 		fmt.Println("quicklook called with nonplayer '" + playerName + "'")
 		return
 	}
-	currentRoom := rooms[player.roomId]
+	currentRoom, roomExists := getRoom(player.roomId)
+	if !roomExists {
+		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+		return
+	}
+
 	c.Write([]byte(currentRoom.PrintBrief() + "\n"))
 }
 
@@ -66,7 +80,13 @@ func initCommandsAdmin(){
 			fmt.Println("makeroom called with nonplayer '" + playerName + "'")
 			return
 		}
-		currentRoom := rooms[player.roomId]
+		currentRoom, roomExists := getRoom(player.roomId)
+		if !roomExists {
+			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			return
+		}
+
+
 		newRoomName := strings.Join(args[1:], " ")
 		currentRoom.NewRoom(newRoomDirection, newRoomName, "")
 		c.Write([]byte(newRoomName + " materializes to the " + newRoomDirection.String() + ". It is nondescript and seems as though it might fade away at any moment.\n"))
@@ -88,12 +108,29 @@ func initCommandsAdmin(){
 			fmt.Println("connectroom called with nonplayer '" + playerName + "'")
 			return
 		}
-		currentRoom := rooms[player.roomId]
+
+		currentRoom, roomExists := getRoom(player.roomId)
+		if !roomExists {
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			return
+		}
+
 		newRoomDirection := stringToDirection(args[0])
-		toConnectRoom := rooms[toConnectRoomId]
-		currentRoom.exits[newRoomDirection] = toConnectRoom
-		toConnectRoom.exits[newRoomDirection.reverse()] = currentRoom
-		c.Write([]byte("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".\n"))
+		toConnectRoom, connectionRoomExists := getRoom(toConnectRoomId)
+		if !connectionRoomExists {
+			c.Write([]byte("No room exists with the given id.\n"))
+			return
+		}
+
+		roomChange<- struct {id int; modify func(*room)} {currentRoom.id, func(r *room){
+				r.exits[newRoomDirection] = toConnectRoom.id
+		}}
+		roomChange<- struct {id int; modify func(*room)} {toConnectRoom.id, func(r *room){
+				r.exits[newRoomDirection.reverse()] = currentRoom.id
+				go func() {
+					c.Write([]byte("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".\n"))
+				}()
+		}}
 	}
 	commands["cr"] = commands["connectroom"]
 
@@ -107,10 +144,17 @@ func initCommandsAdmin(){
 			fmt.Println("describeroom called with nonplayer '" + playerName + "'")
 			return
 		}
-		currentRoom := rooms[player.roomId]
-		currentRoom.description = strings.Join(args[0:], " ")
-		const setDescriptionSuccessMessage = "Everything seems a bit more corporeal."
-		c.Write([]byte(setDescriptionSuccessMessage + "\n"))
+		currentRoom, roomExists := getRoom(player.roomId)
+		if !roomExists {
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			return
+		}
+		roomChange<- struct {id int; modify func(*room)} {currentRoom.id, func(r *room){
+				r.description = strings.Join(args[0:], " ")
+				go func() {
+					c.Write([]byte("Everything seems a bit more corporeal.\n"))
+				}()
+		}}
 	}
 	commands["dr"] = commands["describeroom"]
 	// just displays the current room's ID. Probably doesn't need to be an admin command
@@ -120,7 +164,11 @@ func initCommandsAdmin(){
 			fmt.Println("describeroom called with nonplayer '" + playerName + "'")
 			return
 		}
-		currentRoom := rooms[player.roomId]
+		currentRoom, roomExists := getRoom(player.roomId)
+		if !roomExists {
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			return
+		}
 		c.Write([]byte(strconv.Itoa(currentRoom.id) + "\n"))
 	}
 }
