@@ -8,30 +8,55 @@ import (
 	"os"
 	"strings"
 	"errors"
+	"regexp"
 )
+
+func handleCreatingPlayer(c net.Conn, player string) {
+	const playerCreateMessage = "No player by that name exists. Do you want to create a player?"
+	c.Write([]byte(playerCreateMessage + "\n"))
+	createReply, err := getString(c)
+	if err != nil {
+		return
+	}
+	if strings.HasPrefix(createReply, "y") {
+		fmt.Println("creating player")
+		newPlayer := player_state{name: player, roomId: 0}
+		createPlayer(newPlayer)
+		go handlePlayer(c, player)
+		return
+	}
+	fmt.Println("resuming handleLogin")
+	go handleLogin(c)
+}
 
 // this handles new connections, which are not yet logged in
 func handleLogin(c net.Conn) {
 	negotiateTelnet(c)
-	const loginMessageString = "Welcome to the gomud. Please enter your name:\n"
+	const loginMessageString = "Please enter your name:\n"
 	c.Write([]byte(loginMessageString))
 	for {
 		player, error := getString(c)
 		if error != nil {
 			return
 		}
+
+		const validNameRegex = "[a-zA-Z]+" // names can only contain letters
+		valid, err := regexp.MatchString(validNameRegex, player)
+		if err != nil || !valid {
+			const invalidNameMessage = "That is not a valid name. Please enter your name."
+			c.Write([]byte(invalidNameMessage + "\n"))
+			continue
+		}
+
 		// if the current player doesn't exist, assume the sent text is the player name
 		_, playerExists := getPlayer(player)
 		if !playerExists { // player wasn't found
-			const nameQueryMessage = "What is your name?"
-			const nameQueryRejectMessage = "No player by that name exists. " + nameQueryMessage
-			c.Write([]byte(nameQueryRejectMessage + "\n"))
-			continue
+			go handleCreatingPlayer(c, player)
+			return
 		} 
 		// player was found - user is now logged in
 		const nameSuccessMessage = "You have been successfully logged in!"
 		c.Write([]byte(nameSuccessMessage + "\n"))
-		look(c, player)
 		go handlePlayer(c, player)
 		return
 	}
@@ -40,6 +65,8 @@ func handleLogin(c net.Conn) {
 
 // this handles connections for a logged-in player
 func handlePlayer(c net.Conn, player string) {
+	c.Write([]byte("Welcome " + player + "!\n"))
+	look(c, player)
 	for {
 		message, error := getString(c)
 		if error != nil {
@@ -147,6 +174,7 @@ func listen() {
 			fmt.Println(err)
 			continue
 		}
+		conn.Write([]byte("Welcome to gomud. "))
 		go handleLogin(conn)
 	}
 }
