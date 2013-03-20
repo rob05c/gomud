@@ -113,7 +113,7 @@ func initCommandsAdmin(){
 		c.Write([]byte(setDescriptionSuccessMessage + "\n"))
 	}
 	commands["dr"] = commands["describeroom"]
-	// just displays the current room's ID. Probably doesn't need to be an admin nd
+	// just displays the current room's ID. Probably doesn't need to be an admin command
 	commands["roomid"] = func(args []string, c net.Conn, playerName string) {
 		player, exists := getPlayer(playerName)
 		if !exists {
