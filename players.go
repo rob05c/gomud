@@ -1,5 +1,4 @@
 package main
-
 //
 // player
 //
@@ -38,7 +37,13 @@ func playerManager() {
 		select {
 		case r := <-requestPlayer:
 			player, playerExists := players[r.key]
-			r.response<- struct {player_state; bool}{*player, playerExists}
+			var playerCopy player_state
+			if playerExists {
+				playerCopy = *player
+			} else {
+				playerCopy = player_state{}
+			}
+			r.response<- struct {player_state; bool}{playerCopy, playerExists}
 		case m := <-playerChange:
 			player, playerExists := players[m.key] 
 			if !playerExists {
