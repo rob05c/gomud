@@ -9,7 +9,8 @@ package main
 type player_state struct {
 	name string
 	roomId int
-	pass string
+	passthesalt []byte
+	pass []byte
 }
 
 /// this helper function requests the player from the playerManager goroutine

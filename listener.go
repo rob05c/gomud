@@ -9,6 +9,8 @@ import (
 	"strings"
 	"errors"
 	"regexp"
+	"crypto/rand"
+	"code.google.com/p/go.crypto/ripemd160"
 )
 
 func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
@@ -23,13 +25,28 @@ func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
 		return
 	}
 	fmt.Println("creating player")
-	newPlayer := player_state{name: player, roomId: 0, pass: newPass}
+
+ 	salt := make([]byte, 128)
+	n, err := rand.Read(salt)
+	if n != len(salt) || err != nil {
+		fmt.Println("Error creating salt.")
+		c.Close()
+		return
+	}
+	passBytes := []byte(newPass) // @todo remove this after fixing pass strings
+	saltedPass := make([]byte, len(salt)+len(passBytes))
+	saltedPass = append(saltedPass, salt...)
+	saltedPass = append(saltedPass, passBytes...)
+	h := ripemd160.New()
+	h.Write(saltedPass)
+	hashedPass := h.Sum(nil)
+
+	newPlayer := player_state{name: player, roomId: 0, pass: hashedPass, passthesalt: salt}
 	createPlayer(newPlayer)
 	go handlePlayer(c, player)
 	return
 }
 
- 
 func handleCreatingPlayerPass(c net.Conn, player string) {
 	c.Write([]byte("Please enter a password for your character.\n"))
 	pass, err := getString(c)
@@ -63,7 +80,16 @@ func handleLoginPass(c net.Conn, playerName string) {
 	if !exists {
 		return // we just validated the player exists, so this shouldn't happen
 	}
-	if pass != player.pass {
+	
+	passBytes := []byte(pass) /// @todo remove this after fixing string pass
+	saltedPass := make([]byte, len(player.passthesalt)+len(passBytes))
+	saltedPass = append(saltedPass, player.passthesalt...)
+	saltedPass = append(saltedPass, passBytes...)
+	h := ripemd160.New()
+	h.Write(saltedPass)
+	hashedPass := h.Sum(nil)
+
+	if !bytes.Equal(hashedPass, player.pass) {
 		c.Write([]byte("Invalid password.\n"))
 		c.Close()
 		return
