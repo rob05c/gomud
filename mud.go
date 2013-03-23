@@ -14,9 +14,6 @@ func initialize() {
 		exits: make(map[Direction] int),
 	}
 	createRoom(initialRoom)
-
-	initialPlayer := player_state{name: "rob", roomId: 0, pass: "fubar"}
-	createPlayer(initialPlayer)
 }
 
 func main() {
