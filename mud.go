@@ -15,7 +15,7 @@ func initialize() {
 	}
 	createRoom(initialRoom)
 
-	initialPlayer := player_state{name: "rob", roomId: 0}
+	initialPlayer := player_state{name: "rob", roomId: 0, pass: "fubar"}
 	createPlayer(initialPlayer)
 }
 

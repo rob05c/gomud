@@ -11,6 +11,34 @@ import (
 	"regexp"
 )
 
+func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
+	c.Write([]byte("Please verify your password.\n"))
+	passVerify, err := getString(c)
+	if err != nil {
+		return
+	}
+	if newPass != passVerify {
+		c.Write([]byte("The passwords you entered do not match.\n"))
+		go handleCreatingPlayerPass(c, player)
+		return
+	}
+	fmt.Println("creating player")
+	newPlayer := player_state{name: player, roomId: 0, pass: newPass}
+	createPlayer(newPlayer)
+	go handlePlayer(c, player)
+	return
+}
+
+ 
+func handleCreatingPlayerPass(c net.Conn, player string) {
+	c.Write([]byte("Please enter a password for your character.\n"))
+	pass, err := getString(c)
+	if err != nil {
+		return
+	}
+	go handleCreatingPlayerPassVerify(c, player, pass)
+}
+	
 func handleCreatingPlayer(c net.Conn, player string) {
 	const playerCreateMessage = "No player by that name exists. Do you want to create a player?"
 	c.Write([]byte(playerCreateMessage + "\n"))
@@ -19,14 +47,32 @@ func handleCreatingPlayer(c net.Conn, player string) {
 		return
 	}
 	if strings.HasPrefix(createReply, "y") {
-		fmt.Println("creating player")
-		newPlayer := player_state{name: player, roomId: 0}
-		createPlayer(newPlayer)
-		go handlePlayer(c, player)
+		go handleCreatingPlayerPass(c, player)
 		return
 	}
-	fmt.Println("resuming handleLogin")
 	go handleLogin(c)
+}
+
+func handleLoginPass(c net.Conn, playerName string) {
+	c.Write([]byte("Please enter your password.\n"))
+	pass, err := getString(c)
+	if err != nil {
+		return
+	}
+	player, exists := getPlayer(playerName)
+	if !exists {
+		return // we just validated the player exists, so this shouldn't happen
+	}
+	if pass != player.pass {
+		c.Write([]byte("Invalid password.\n"))
+		c.Close()
+		return
+	}
+
+	// player was found - user is now logged in
+	const nameSuccessMessage = "You have been successfully logged in!"
+	c.Write([]byte(nameSuccessMessage + "\n"))
+	go handlePlayer(c, playerName)
 }
 
 // this handles new connections, which are not yet logged in
@@ -54,10 +100,7 @@ func handleLogin(c net.Conn) {
 			go handleCreatingPlayer(c, player)
 			return
 		} 
-		// player was found - user is now logged in
-		const nameSuccessMessage = "You have been successfully logged in!"
-		c.Write([]byte(nameSuccessMessage + "\n"))
-		go handlePlayer(c, player)
+		go handleLoginPass(c, player)
 		return
 	}
 

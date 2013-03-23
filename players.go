@@ -1,4 +1,5 @@
 package main
+
 //
 // player
 //
@@ -8,6 +9,7 @@ package main
 type player_state struct {
 	name string
 	roomId int
+	pass string
 }
 
 /// this helper function requests the player from the playerManager goroutine
