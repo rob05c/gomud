@@ -72,22 +72,31 @@ func handleCreatingPlayer(c net.Conn, player string) {
 
 func handleLoginPass(c net.Conn, playerName string) {
 	c.Write([]byte("Please enter your password.\n"))
-	pass, err := getString(c)
+	pass, err := getBytesSecure(c)
 	if err != nil {
 		return
 	}
 	player, exists := getPlayer(playerName)
 	if !exists {
+		for i := range pass {
+			pass[i] = 0
+		}
 		return // we just validated the player exists, so this shouldn't happen
 	}
 	
-	passBytes := []byte(pass) /// @todo remove this after fixing string pass
-	saltedPass := make([]byte, len(player.passthesalt)+len(passBytes))
+	saltedPass := make([]byte, len(player.passthesalt)+len(pass))
 	saltedPass = append(saltedPass, player.passthesalt...)
-	saltedPass = append(saltedPass, passBytes...)
+	saltedPass = append(saltedPass, pass...)
 	h := ripemd160.New()
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
+
+	for i := range saltedPass {
+		saltedPass[i] = 0
+	}
+	for i := range pass {
+		pass[i] = 0
+	}
 
 	if !bytes.Equal(hashedPass, player.pass) {
 		c.Write([]byte("Invalid password.\n"))
@@ -163,6 +172,58 @@ func handlePlayer(c net.Conn, player string) {
 	}
 }
 
+/// when concatenating byte arrays, overwrites old bytes.
+/// use for getting secure text, such as passwords.
+func getBytesSecure(c net.Conn) ([]byte, error) {
+	readBuf := make([]byte, 8)
+	finalBuf := make([]byte, 0)
+	for {
+		n, err := c.Read(readBuf)
+		if err != nil {
+			if err != io.EOF {
+				fmt.Println("error: " + err.Error())
+				return nil, err
+			} else {
+				fmt.Println("connection closed.")
+				return nil, errors.New("connection closed")
+			}
+		}
+		readBuf = bytes.Trim(readBuf[:n], "\x00")
+		if len(readBuf) == 0 {
+			continue
+		}
+		if readBuf[0] == IAC {
+			var option byte
+			if len(readBuf) > 1 {
+				option = readBuf[0]
+			} else {
+				option = byte(0)
+			}
+			
+			var optionInfo byte
+			if len(readBuf) > 2 {
+				optionInfo = readBuf[2]
+			} else {
+				optionInfo = byte(0)
+			}
+			handleTelnet(option, optionInfo, c)
+			continue
+		}
+		finalBuf = append(finalBuf, readBuf...)
+ 		if len(finalBuf) == 0 {
+			continue
+		}
+		if finalBuf[len(finalBuf)-1] == '\n' {
+			break;
+		}
+	}
+	for i := range readBuf {
+		readBuf[i] = 0
+	}
+	finalBuf = bytes.Trim(finalBuf, " \r\n")
+	return finalBuf, nil
+}
+
 // this returns a string sent by the connected client.
 // it also processes any Telnet commands it happens to read
 func getString(c net.Conn) (string, error) {
@@ -205,7 +266,7 @@ func getString(c net.Conn) (string, error) {
 			continue
 		}
 		finalBuf = append(finalBuf, readBuf...)
-		if len(finalBuf) == 0 {
+ 		if len(finalBuf) == 0 {
 			continue
 		}
 		if finalBuf[len(finalBuf)-1] == '\n' {
