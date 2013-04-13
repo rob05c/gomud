@@ -16,7 +16,7 @@ func walk(d Direction, c net.Conn, playerName string) {
 	}
 	currentRoom, roomExists := getRoom(player.roomId)
 	if !roomExists {
-		fmt.Println("walk called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId))
+		fmt.Println("walk called with player with invalid room '" + playerName + "' " + strconv.Itoa( int(player.roomId)))
 		return
 	}
 	newRoomId, ok := currentRoom.exits[d]
@@ -40,7 +40,7 @@ func look(c net.Conn, playerName string) {
 
 	currentRoom, roomExists := getRoom(player.roomId)
 	if !roomExists {
-		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId))
+		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId)))
 		return
 	}
 
@@ -55,7 +55,7 @@ func quicklook(c net.Conn, playerName string) {
 	}
 	currentRoom, roomExists := getRoom(player.roomId)
 	if !roomExists {
-		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
 		return
 	}
 
@@ -82,7 +82,7 @@ func initCommandsAdmin(){
 		}
 		currentRoom, roomExists := getRoom(player.roomId)
 		if !roomExists {
-			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
 			return
 		}
 
@@ -98,11 +98,12 @@ func initCommandsAdmin(){
 			c.Write([]byte(commandRejectMessage + "5\n"))
 			return
 		}
-		toConnectRoomId, err := strconv.Atoi(args[1])
+		toConnectRoomIdInt, err := strconv.Atoi(args[1])
 		if err != nil {
 			c.Write([]byte(commandRejectMessage + "6\n"))
 			return
 		}
+		toConnectRoomId := roomIdentifier(toConnectRoomIdInt)
 		player, exists := getPlayer(playerName)
 		if !exists {
 			fmt.Println("connectroom called with nonplayer '" + playerName + "'")
@@ -111,7 +112,7 @@ func initCommandsAdmin(){
 
 		currentRoom, roomExists := getRoom(player.roomId)
 		if !roomExists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
 			return
 		}
 
@@ -122,10 +123,10 @@ func initCommandsAdmin(){
 			return
 		}
 
-		roomChange<- struct {id int; modify func(*room)} {currentRoom.id, func(r *room){
+		roomChange<- struct {id roomIdentifier; modify func(*room)} {currentRoom.id, func(r *room){
 				r.exits[newRoomDirection] = toConnectRoom.id
 		}}
-		roomChange<- struct {id int; modify func(*room)} {toConnectRoom.id, func(r *room){
+		roomChange<- struct {id roomIdentifier; modify func(*room)} {toConnectRoom.id, func(r *room){
 				r.exits[newRoomDirection.reverse()] = currentRoom.id
 				go func() {
 					c.Write([]byte("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".\n"))
@@ -146,10 +147,10 @@ func initCommandsAdmin(){
 		}
 		currentRoom, roomExists := getRoom(player.roomId)
 		if !roomExists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
 			return
 		}
-		roomChange<- struct {id int; modify func(*room)} {currentRoom.id, func(r *room){
+		roomChange<- struct {id roomIdentifier; modify func(*room)} {currentRoom.id, func(r *room){
 				r.description = strings.Join(args[0:], " ")
 				go func() {
 					c.Write([]byte("Everything seems a bit more corporeal.\n"))
@@ -166,10 +167,10 @@ func initCommandsAdmin(){
 		}
 		currentRoom, roomExists := getRoom(player.roomId)
 		if !roomExists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(player.roomId)) 
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
 			return
 		}
-		c.Write([]byte(strconv.Itoa(currentRoom.id) + "\n"))
+		c.Write([]byte(strconv.Itoa(int(currentRoom.id)) + "\n"))
 	}
 }
 

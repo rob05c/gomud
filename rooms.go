@@ -3,15 +3,16 @@ import (
 	"bytes"
 )
 
+type roomIdentifier identifier
 
 //
 // room
 //
 type room struct {
-	id int
+	id roomIdentifier
 	name string
 	description string
-	exits map[Direction] int
+	exits map[Direction] roomIdentifier
 }
 
 func (r room) printDirections() string {
@@ -70,37 +71,37 @@ func (r *room) NewRoom(d Direction, newName string, newDesc string) {
 	newRoom := room {
 		name: newName,
 		description: newDesc,
-		exits: make(map[Direction] int),
+		exits: make(map[Direction] roomIdentifier),
 	}
 	newRoom.exits[d.reverse()] = r.id
 	newRoomId := createRoom(newRoom)
-	roomChange<- struct {id int; modify func(*room)} {r.id, func(r *room){
+	roomChange<- struct {id roomIdentifier; modify func(*room)} {r.id, func(r *room){
 			r.exits[d] = newRoomId
 	}}
 }
 
-func getRoom(roomid int) (newroom room, exists bool) {
+func getRoom(roomid roomIdentifier) (newroom room, exists bool) {
 	responseChan := make(chan struct{room; bool})
-	requestRoom<- struct {id int; response chan struct {room; bool}}{roomid, responseChan}
+	requestRoom<- struct {id roomIdentifier; response chan struct {room; bool}}{roomid, responseChan}
 	response := <-responseChan
 	return response.room, response.bool
 }
 
-func createRoom(r room) int {
-	responseChan := make(chan int)
-	roomCreate<- struct{newroom room; response chan int} {r, responseChan}
+func createRoom(r room) roomIdentifier {
+	responseChan := make(chan roomIdentifier)
+	roomCreate<- struct{newroom room; response chan roomIdentifier} {r, responseChan}
 	newRoomId := <-responseChan
 	return newRoomId
 }
 
 /// @todo pass these around, and remove from global scope
-var requestRoom = make(chan struct {id int; response chan struct {room; bool}})
+var requestRoom = make(chan struct {id roomIdentifier; response chan struct {room; bool}})
 /// anything in modify besides modifying the room MUST be called in a goroutine. Else, deadlock.
-var roomChange = make(chan struct {id int; modify func(*room)})
-var roomCreate = make(chan struct {newroom room; response chan int})
+var roomChange = make(chan struct {id roomIdentifier; modify func(*room)})
+var roomCreate = make(chan struct {newroom room; response chan roomIdentifier})
 
 func roomManager() {
-	var rooms = map[int] *room {} 
+	var rooms = map[roomIdentifier] *room {} 
 	for {
 		select {
 		case r := <-requestRoom:
@@ -119,7 +120,7 @@ func roomManager() {
 			}
 			m.modify(croom)
 		case n := <-roomCreate:
-			n.newroom.id = len(rooms)
+			n.newroom.id = roomIdentifier(len(rooms))
 			rooms[n.newroom.id] = &n.newroom
 			n.response<- n.newroom.id
 		}
