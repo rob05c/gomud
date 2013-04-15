@@ -8,6 +8,7 @@ func initialize() {
 	initCommands()
 	go playerManager()
 	go roomManager()
+	go playerRoomManager()
 
 	initialRoom := room{
 		id: roomIdentifier(0),

@@ -3,6 +3,8 @@ import (
 	"bytes"
 )
 
+// @todo create roomIdentifier.String()
+
 type roomIdentifier identifier
 
 //

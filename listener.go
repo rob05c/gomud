@@ -41,8 +41,9 @@ func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 
-	newPlayer := player_state{name: player, roomId: 0, pass: hashedPass, passthesalt: salt}
+	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt}
 	createPlayer(newPlayer)
+	playerRoomAdd<- struct{player string; roomId roomIdentifier} {player, 0}
 	go handlePlayer(c, player)
 	return
 }

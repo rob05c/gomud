@@ -9,38 +9,19 @@ const commandRejectMessage = "I don't understand."
 var commands = map[string] func([]string, net.Conn, string)() {}
 
 func walk(d Direction, c net.Conn, playerName string) {
-	player, exists := getPlayer(playerName)
-	if !exists {
-		fmt.Println("walk called with nonplayer '" + playerName + "'")
-		return
-	}
-	currentRoom, roomExists := getRoom(player.roomId)
-	if !roomExists {
-		fmt.Println("walk called with player with invalid room '" + playerName + "' " + strconv.Itoa( int(player.roomId)))
-		return
-	}
-	newRoomId, ok := currentRoom.exits[d]
-	if !ok {
-		const invalidDirectionMessage = "You faceplant a wall. Suck."
-		c.Write([]byte(invalidDirectionMessage + "\n"))
-		return
-	}
-	playerChange<- struct {key string; modify func(*player_state)} {player.name, func(player *player_state){
-			player.roomId = newRoomId
-			go look(c, playerName)
-	}}
+	movePlayer(c, playerName, d)
 }
 
 func look(c net.Conn, playerName string) {
-	player, exists := getPlayer(playerName)
+	roomId, exists := playerRoom(playerName)
 	if !exists {
-		fmt.Println("look called with nonplayer '" + playerName + "'")
+		fmt.Println("look called with invalid  player'" + playerName + "'")
 		return
 	}
-
-	currentRoom, roomExists := getRoom(player.roomId)
-	if !roomExists {
-		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId)))
+	
+	currentRoom, exists := getRoom(roomId)
+	if !exists {
+		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
 	}
 
@@ -48,14 +29,14 @@ func look(c net.Conn, playerName string) {
 }
 
 func quicklook(c net.Conn, playerName string) {
-	player, exists := getPlayer(playerName)
+	roomId, exists := playerRoom(playerName)
 	if !exists {
-		fmt.Println("quicklook called with nonplayer '" + playerName + "'")
+		fmt.Println("quicklook called with invalid player  '" + playerName + "'")
 		return
 	}
-	currentRoom, roomExists := getRoom(player.roomId)
-	if !roomExists {
-		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
+	currentRoom, exists := getRoom(roomId)
+	if !exists {
+		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
 		return
 	}
 
@@ -75,14 +56,14 @@ func initCommandsAdmin(){
 			fmt.Println(args[1]) ///< @todo give more descriptive error
 			return
 		}
-		player, exists := getPlayer(playerName)
+		roomId, exists := playerRoom(playerName)
 		if !exists {
-			fmt.Println("makeroom called with nonplayer '" + playerName + "'")
+			fmt.Println("makeroom called with invalid player '" + playerName + "'")
 			return
 		}
-		currentRoom, roomExists := getRoom(player.roomId)
-		if !roomExists {
-			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
+		currentRoom, exists := getRoom(roomId)
+		if !exists {
+			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
 			return
 		}
 
@@ -104,15 +85,15 @@ func initCommandsAdmin(){
 			return
 		}
 		toConnectRoomId := roomIdentifier(toConnectRoomIdInt)
-		player, exists := getPlayer(playerName)
+		roomId, exists := playerRoom(playerName)
 		if !exists {
-			fmt.Println("connectroom called with nonplayer '" + playerName + "'")
+			fmt.Println("connectroom called with invalid player '" + playerName + "'")
 			return
 		}
 
-		currentRoom, roomExists := getRoom(player.roomId)
-		if !roomExists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
+		currentRoom, exists := getRoom(roomId)
+		if !exists {
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
 			return
 		}
 
@@ -140,14 +121,14 @@ func initCommandsAdmin(){
 			c.Write([]byte(commandRejectMessage + "3\n")) ///< @todo give better  error
 			return
 		}
-		player, exists := getPlayer(playerName)
+		roomId, exists := playerRoom(playerName)
 		if !exists {
-			fmt.Println("describeroom called with nonplayer '" + playerName + "'")
+			fmt.Println("describeroom called with invalid player '" + playerName + "'")
 			return
 		}
-		currentRoom, roomExists := getRoom(player.roomId)
-		if !roomExists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
+		currentRoom, exists := getRoom(roomId)
+		if !exists {
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
 			return
 		}
 		roomChange<- struct {id roomIdentifier; modify func(*room)} {currentRoom.id, func(r *room){
@@ -160,14 +141,15 @@ func initCommandsAdmin(){
 	commands["dr"] = commands["describeroom"]
 	// just displays the current room's ID. Probably doesn't need to be an admin command
 	commands["roomid"] = func(args []string, c net.Conn, playerName string) {
-		player, exists := getPlayer(playerName)
+		roomId, exists := playerRoom(playerName)
 		if !exists {
-			fmt.Println("describeroom called with nonplayer '" + playerName + "'")
+			fmt.Println("describeroom called with invalid player '" + playerName + "'")
 			return
 		}
-		currentRoom, roomExists := getRoom(player.roomId)
-		if !roomExists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(player.roomId))) 
+		
+		currentRoom, exists := getRoom(roomId)
+		if !exists {
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
 			return
 		}
 		c.Write([]byte(strconv.Itoa(int(currentRoom.id)) + "\n"))

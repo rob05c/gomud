@@ -8,7 +8,6 @@ package main
 //
 type player_state struct {
 	name string
-	roomId roomIdentifier
 	passthesalt []byte
 	pass []byte
 }
