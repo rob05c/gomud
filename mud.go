@@ -4,9 +4,14 @@ const defaultPort = 9241
 
 type identifier int32
 
-func initialize() {
+type metaManager struct {
+	*playerManager
+}
+
+func initialize() metaManager {
 	initCommands()
-	go playerManager()
+	managers := metaManager{}
+	managers.playerManager = newPlayerManager()
 	go roomManager()
 	go playerRoomManager()
 
@@ -17,9 +22,10 @@ func initialize() {
 		exits: make(map[Direction] roomIdentifier),
 	}
 	createRoom(initialRoom)
+	return managers
 }
 
 func main() {
-	initialize()
-	listen()
+	managers := initialize()
+	listen(managers)
 }

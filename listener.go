@@ -13,7 +13,7 @@ import (
 	"code.google.com/p/go.crypto/ripemd160"
 )
 
-func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
+func handleCreatingPlayerPassVerify(managers metaManager, c net.Conn, player string, newPass string) {
 	c.Write([]byte("Please verify your password.\n"))
 	passVerify, err := getString(c)
 	if err != nil {
@@ -21,7 +21,7 @@ func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
 	}
 	if newPass != passVerify {
 		c.Write([]byte("The passwords you entered do not match.\n"))
-		go handleCreatingPlayerPass(c, player)
+		go handleCreatingPlayerPass(managers, c, player)
 		return
 	}
 	fmt.Println("creating player")
@@ -42,22 +42,22 @@ func handleCreatingPlayerPassVerify(c net.Conn, player string, newPass string) {
 	hashedPass := h.Sum(nil)
 
 	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt}
-	createPlayer(newPlayer)
+	managers.playerManager.createPlayer(newPlayer)
 	playerRoomAdd<- struct{player string; roomId roomIdentifier} {player, 0}
-	go handlePlayer(c, player)
+	go handlePlayer(managers, c, player)
 	return
 }
 
-func handleCreatingPlayerPass(c net.Conn, player string) {
+func handleCreatingPlayerPass(managers metaManager, c net.Conn, player string) {
 	c.Write([]byte("Please enter a password for your character.\n"))
 	pass, err := getString(c)
 	if err != nil {
 		return
 	}
-	go handleCreatingPlayerPassVerify(c, player, pass)
+	go handleCreatingPlayerPassVerify(managers, c, player, pass)
 }
 	
-func handleCreatingPlayer(c net.Conn, player string) {
+func handleCreatingPlayer(managers metaManager, c net.Conn, player string) {
 	const playerCreateMessage = "No player by that name exists. Do you want to create a player?"
 	c.Write([]byte(playerCreateMessage + "\n"))
 	createReply, err := getString(c)
@@ -65,19 +65,19 @@ func handleCreatingPlayer(c net.Conn, player string) {
 		return
 	}
 	if strings.HasPrefix(createReply, "y") {
-		go handleCreatingPlayerPass(c, player)
+		go handleCreatingPlayerPass(managers, c, player)
 		return
 	}
-	go handleLogin(c)
+	go handleLogin(managers, c)
 }
 
-func handleLoginPass(c net.Conn, playerName string) {
+func handleLoginPass(managers metaManager, c net.Conn, playerName string) {
 	c.Write([]byte("Please enter your password.\n"))
 	pass, err := getBytesSecure(c)
 	if err != nil {
 		return
 	}
-	player, exists := getPlayer(playerName)
+	player, exists := managers.playerManager.getPlayer(playerName)
 	if !exists {
 		for i := range pass {
 			pass[i] = 0
@@ -108,11 +108,11 @@ func handleLoginPass(c net.Conn, playerName string) {
 	// player was found - user is now logged in
 	const nameSuccessMessage = "You have been successfully logged in!"
 	c.Write([]byte(nameSuccessMessage + "\n"))
-	go handlePlayer(c, playerName)
+	go handlePlayer(managers, c, playerName)
 }
 
 // this handles new connections, which are not yet logged in
-func handleLogin(c net.Conn) {
+func handleLogin(managers metaManager, c net.Conn) {
 	negotiateTelnet(c)
 	const loginMessageString = "Please enter your name:\n"
 	c.Write([]byte(loginMessageString))
@@ -131,19 +131,19 @@ func handleLogin(c net.Conn) {
 		}
 
 		// if the current player doesn't exist, assume the sent text is the player name
-		_, playerExists := getPlayer(player)
+		_, playerExists := managers.playerManager .getPlayer(player)
 		if !playerExists { // player wasn't found
-			go handleCreatingPlayer(c, player)
+			go handleCreatingPlayer(managers, c, player)
 			return
 		} 
-		go handleLoginPass(c, player)
+		go handleLoginPass(managers, c, player)
 		return
 	}
 
 }
 
 // this handles connections for a logged-in player
-func handlePlayer(c net.Conn, player string) {
+func handlePlayer(managers metaManager, c net.Conn, player string) {
 	c.Write([]byte("Welcome " + player + "!\n"))
 	look(c, player)
 	for {
@@ -281,7 +281,7 @@ func getString(c net.Conn) (string, error) {
 }
 
 // listen for new connections, and spin them off into goroutines
-func listen() {
+func listen(managers metaManager) {
 	port := defaultPort
 	if len(os.Args) > 1 {
 		argPort, success := strconv.Atoi(os.Args[1])
@@ -306,6 +306,6 @@ func listen() {
 			continue
 		}
 		conn.Write([]byte("Welcome to gomud. "))
-		go handleLogin(conn)
+		go handleLogin(managers, conn)
 	}
 }
