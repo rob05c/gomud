@@ -6,14 +6,13 @@ type identifier int32
 
 type metaManager struct {
 	*playerManager
+	*roomManager
 }
 
 func initialize() metaManager {
 	initCommands()
-	managers := metaManager{}
-	managers.playerManager = newPlayerManager()
-	go roomManager()
-	go playerRoomManager()
+	managers := metaManager{playerManager: newPlayerManager(), roomManager: newRoomManager()}
+	go playerRoomManager(managers.roomManager)
 
 	initialRoom := room{
 		id: roomIdentifier(0),
@@ -21,7 +20,7 @@ func initialize() metaManager {
 		description: "Everything has a beginning. This is only one of many beginnings you will soon find as I continue typing in order to create a wall of text to test this. It's a very long sentence that precedes this slightly shorter one. Blarglblargl.",
 		exits: make(map[Direction] roomIdentifier),
 	}
-	createRoom(initialRoom)
+	managers.roomManager.createRoom(initialRoom)
 	return managers
 }
 

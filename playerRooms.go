@@ -25,14 +25,14 @@ var playerTeleport = make(chan struct {player string; roomId roomIdentifier; pos
 var playerForceMove = make(chan struct {player string; roomId roomIdentifier; direction Direction; postFunc func(bool)})
 var playerForceTeleport = make(chan struct {player string; currentRoom roomIdentifier; newRoom roomIdentifier; postFunc func(bool)})
 
-func movePlayer(c net.Conn, player string, direction Direction) {
+func movePlayer(c net.Conn, player string, direction Direction, roomMan *roomManager) {
 	playerMove<- struct{player string; direction Direction; postFunc func(bool)} {player, direction, func (success bool) {
 			if !success {
 				// @todo tell the user why (no exit, blocked, etc.
 				c.Write([]byte("You can't go there.\n")) 
 				return
 			}
-			go look(c, player)
+			go look(c, player, roomMan)
 		}}
 }
 
@@ -49,7 +49,7 @@ func roomPlayers(r roomIdentifier) map[string] bool {
 	return <-responseChan
 }
 
-func playerRoomManager() {
+func playerRoomManager(roomMan *roomManager) {
 	playerRooms := map[string] roomIdentifier {}
 	roomPlayers := map[roomIdentifier] map[string] bool {}
 
@@ -96,7 +96,7 @@ func playerRoomManager() {
 			delete(playerRooms, r)
 		case m := <- playerMove:
 			oldRoomId := playerRooms[m.player]
-			oldRoom, exists := getRoom(oldRoomId)
+			oldRoom, exists := roomMan.getRoom(oldRoomId)
 			if !exists {
 				fmt.Println("playerRoomManager error: move called for nonexistent room " + strconv.Itoa(int(oldRoomId)))
 				go m.postFunc(false)
@@ -117,7 +117,7 @@ func playerRoomManager() {
 				go f.postFunc(false)
 				continue
 			}
-			oldRoom, exists := getRoom(f.roomId)
+			oldRoom, exists := roomMan.getRoom(f.roomId)
 			if !exists {
 				go f.postFunc(false)
 				continue

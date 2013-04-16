@@ -69,44 +69,57 @@ func (r room) PrintBrief() string {
 	return buffer.String()
 }
 
-func (r *room) NewRoom(d Direction, newName string, newDesc string) {
+/// @todo ? make this a member of roomManager
+func (r *room) NewRoom(manager *roomManager, d Direction, newName string, newDesc string) {
 	newRoom := room {
 		name: newName,
 		description: newDesc,
 		exits: make(map[Direction] roomIdentifier),
 	}
 	newRoom.exits[d.reverse()] = r.id
-	newRoomId := createRoom(newRoom)
-	roomChange<- struct {id roomIdentifier; modify func(*room)} {r.id, func(r *room){
-			r.exits[d] = newRoomId
-	}}
+	newRoomId := manager.createRoom(newRoom)
+	manager.changeRoom(r.id, func(r *room) {
+		r.exits[d] = newRoomId
+	})
 }
 
-func getRoom(roomid roomIdentifier) (newroom room, exists bool) {
+type roomManager struct {
+	requestRoomChan chan struct {id roomIdentifier; response chan struct {room; bool}}
+	roomChangeChan chan struct {id roomIdentifier; modify func(*room)}
+	roomCreateChan chan struct {newroom room; response chan roomIdentifier}
+}
+
+func (m roomManager) getRoom(roomid roomIdentifier) (newroom room, exists bool) {
 	responseChan := make(chan struct{room; bool})
-	requestRoom<- struct {id roomIdentifier; response chan struct {room; bool}}{roomid, responseChan}
+	m.requestRoomChan<- struct {id roomIdentifier; response chan struct {room; bool}}{roomid, responseChan}
 	response := <-responseChan
 	return response.room, response.bool
 }
 
-func createRoom(r room) roomIdentifier {
+func (m roomManager) createRoom(r room) roomIdentifier {
 	responseChan := make(chan roomIdentifier)
-	roomCreate<- struct{newroom room; response chan roomIdentifier} {r, responseChan}
+	m.roomCreateChan<- struct{newroom room; response chan roomIdentifier} {r, responseChan}
 	newRoomId := <-responseChan
 	return newRoomId
 }
 
-/// @todo pass these around, and remove from global scope
-var requestRoom = make(chan struct {id roomIdentifier; response chan struct {room; bool}})
+/// callers should be aware this is asynchronous - the room is not necessarily changed immediately upon return
 /// anything in modify besides modifying the room MUST be called in a goroutine. Else, deadlock.
-var roomChange = make(chan struct {id roomIdentifier; modify func(*room)})
-var roomCreate = make(chan struct {newroom room; response chan roomIdentifier})
+func (m roomManager) changeRoom(id roomIdentifier, modify func(*room)) {
+	m.roomChangeChan<- struct {id roomIdentifier; modify func(*room)} {id, modify}
+}
 
-func roomManager() {
+func newRoomManager() *roomManager {
+	roomManager := &roomManager{requestRoomChan: make(chan struct {id roomIdentifier; response chan struct {room; bool}}), roomChangeChan: make(chan struct {id roomIdentifier; modify func(*room)}), roomCreateChan: make(chan struct {newroom room; response chan roomIdentifier})}
+	go manageRooms(roomManager)
+	return roomManager
+}
+
+func manageRooms(manager *roomManager) {
 	var rooms = map[roomIdentifier] *room {} 
 	for {
 		select {
-		case r := <-requestRoom:
+		case r := <-manager.requestRoomChan:
 			rroom, exists := rooms[r.id]
 			var roomCopy room
 			if exists {
@@ -115,13 +128,13 @@ func roomManager() {
 				roomCopy = room{id: -1}
 			}
 			r.response<- struct {room; bool} {roomCopy, exists}
-		case m := <-roomChange:
+		case m := <-manager.roomChangeChan:
 			croom, exists := rooms[m.id]
 			if !exists {
 				continue
 			}
 			m.modify(croom)
-		case n := <-roomCreate:
+		case n := <-manager.roomCreateChan:
 			n.newroom.id = roomIdentifier(len(rooms))
 			rooms[n.newroom.id] = &n.newroom
 			n.response<- n.newroom.id

@@ -48,7 +48,7 @@ func newPlayerManager() *playerManager {
 }
 
 func managePlayers(manager *playerManager) {
-	var players =  map[string] *player_state {}
+	var players = map[string] *player_state {}
 	for {
 		select {
 		case r := <-manager.requestPlayerChan:
