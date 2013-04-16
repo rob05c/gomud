@@ -1,9 +1,11 @@
 package main
+
 import (
 	"strings"
 )
 
 type Direction int32
+
 const (
 	north = iota
 	south

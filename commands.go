@@ -1,12 +1,15 @@
 package main
+
 import (
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 )
+
 const commandRejectMessage = "I don't understand."
-var commands = map[string] func([]string, net.Conn, string, *metaManager)() {}
+
+var commands = map[string]func([]string, net.Conn, string, *metaManager){}
 
 func walk(d Direction, c net.Conn, playerName string, manager *roomManager) {
 	movePlayer(c, playerName, d, manager)
@@ -18,7 +21,7 @@ func look(c net.Conn, playerName string, m *roomManager) {
 		fmt.Println("look called with invalid  player'" + playerName + "'")
 		return
 	}
-	
+
 	currentRoom, exists := m.getRoom(roomId)
 	if !exists {
 		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
@@ -36,14 +39,14 @@ func quicklook(c net.Conn, playerName string, m *roomManager) {
 	}
 	currentRoom, exists := m.getRoom(roomId)
 	if !exists {
-		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
+		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
 	}
 
 	c.Write([]byte(currentRoom.PrintBrief() + "\n"))
 }
 
-func initCommandsAdmin(){
+func initCommandsAdmin() {
 	commands["makeroom"] = func(args []string, c net.Conn, playerName string, managers *metaManager) {
 		if len(args) < 2 {
 			c.Write([]byte(commandRejectMessage + "3\n")) ///< @todo give better error
@@ -52,8 +55,8 @@ func initCommandsAdmin(){
 		newRoomDirection := stringToDirection(args[0])
 		if newRoomDirection < north || newRoomDirection > southwest {
 			c.Write([]byte(commandRejectMessage + "4\n")) ///< @todo give better error
-			fmt.Println(args[0]) ///< @todo give more descriptive error
-			fmt.Println(args[1]) ///< @todo give more descriptive error
+			fmt.Println(args[0])                          ///< @todo give more descriptive error
+			fmt.Println(args[1])                          ///< @todo give more descriptive error
 			return
 		}
 		roomId, exists := playerRoom(playerName)
@@ -63,7 +66,7 @@ func initCommandsAdmin(){
 		}
 		currentRoom, exists := managers.roomManager.getRoom(roomId)
 		if !exists {
-			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
+			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 
@@ -92,7 +95,7 @@ func initCommandsAdmin(){
 
 		currentRoom, exists := managers.roomManager.getRoom(roomId)
 		if !exists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 
@@ -103,14 +106,14 @@ func initCommandsAdmin(){
 			return
 		}
 
-		managers.roomManager.changeRoom(currentRoom.id, func(r *room){
-				r.exits[newRoomDirection] = toConnectRoom.id
+		managers.roomManager.changeRoom(currentRoom.id, func(r *room) {
+			r.exits[newRoomDirection] = toConnectRoom.id
 		})
-		managers.roomManager.changeRoom(toConnectRoom.id, func(r *room){
-				r.exits[newRoomDirection.reverse()] = currentRoom.id
-				go func() {
-					c.Write([]byte("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".\n"))
-				}()
+		managers.roomManager.changeRoom(toConnectRoom.id, func(r *room) {
+			r.exits[newRoomDirection.reverse()] = currentRoom.id
+			go func() {
+				c.Write([]byte("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".\n"))
+			}()
 		})
 	}
 	commands["cr"] = commands["connectroom"]
@@ -127,14 +130,14 @@ func initCommandsAdmin(){
 		}
 		currentRoom, exists := managers.roomManager.getRoom(roomId)
 		if !exists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
-		managers.roomManager.changeRoom(currentRoom.id, func(r *room){
-				r.description = strings.Join(args[0:], " ")
-				go func() {
-					c.Write([]byte("Everything seems a bit more corporeal.\n"))
-				}()
+		managers.roomManager.changeRoom(currentRoom.id, func(r *room) {
+			r.description = strings.Join(args[0:], " ")
+			go func() {
+				c.Write([]byte("Everything seems a bit more corporeal.\n"))
+			}()
 		})
 	}
 	commands["dr"] = commands["describeroom"]
@@ -145,10 +148,10 @@ func initCommandsAdmin(){
 			fmt.Println("roomid called with invalid player '" + playerName + "'")
 			return
 		}
-		
+
 		currentRoom, exists := managers.roomManager.getRoom(roomId)
 		if !exists {
-			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId))) 
+			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 		c.Write([]byte(strconv.Itoa(int(currentRoom.id)) + "\n"))

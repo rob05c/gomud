@@ -7,16 +7,25 @@ package main
 // If the server closes and reopens, it must persist
 //
 type player_state struct {
-	name string
+	name        string
 	passthesalt []byte
-	pass []byte
+	pass        []byte
 }
 
 type playerManager struct {
 	// users of the playerManager SHOULD NOT access these directly. 
 	// rather, user the accessor member functions
-	requestPlayerChan chan struct {key string; response chan struct {player_state; bool}}
-	playerChangeChan chan struct {key string; modify func(*player_state)}
+	requestPlayerChan chan struct {
+		key      string
+		response chan struct {
+			player_state
+			bool
+		}
+	}
+	playerChangeChan chan struct {
+		key    string
+		modify func(*player_state)
+	}
 	playerCreateChan chan player_state
 }
 
@@ -26,29 +35,50 @@ type playerManager struct {
 ///
 /// @todo change this to take a post-modify func, and create a closure which calls both, to show intent
 func (p playerManager) changePlayer(name string, modifier func(*player_state)) {
-	p.playerChangeChan<- struct{key string; modify func(*player_state)}{name, modifier}
+	p.playerChangeChan <- struct {
+		key    string
+		modify func(*player_state)
+	}{name, modifier}
 }
 
 /// this helper function requests the player from the playerManager goroutine
 func (p playerManager) getPlayer(name string) (player player_state, exists bool) {
-	responseChan := make(chan struct{player_state; bool})
-	p.requestPlayerChan<- struct {key string; response chan struct {player_state; bool}}{name, responseChan}
+	responseChan := make(chan struct {
+		player_state
+		bool
+	})
+	p.requestPlayerChan <- struct {
+		key      string
+		response chan struct {
+			player_state
+			bool
+		}
+	}{name, responseChan}
 	response := <-responseChan
 	return response.player_state, response.bool
 }
 
 func (p playerManager) createPlayer(player player_state) {
-	p.playerCreateChan<- player
+	p.playerCreateChan <- player
 }
 
 func newPlayerManager() *playerManager {
-	playerManager := &playerManager{requestPlayerChan: make(chan struct {key string; response chan struct {player_state; bool}}), playerChangeChan: make(chan struct {key string; modify func(*player_state)}), playerCreateChan: make(chan player_state)}
+	playerManager := &playerManager{requestPlayerChan: make(chan struct {
+		key      string
+		response chan struct {
+			player_state
+			bool
+		}
+	}), playerChangeChan: make(chan struct {
+		key    string
+		modify func(*player_state)
+	}), playerCreateChan: make(chan player_state)}
 	go managePlayers(playerManager)
 	return playerManager
 }
 
 func managePlayers(manager *playerManager) {
-	var players = map[string] *player_state {}
+	var players = map[string]*player_state{}
 	for {
 		select {
 		case r := <-manager.requestPlayerChan:
@@ -59,9 +89,12 @@ func managePlayers(manager *playerManager) {
 			} else {
 				playerCopy = player_state{}
 			}
-			r.response<- struct {player_state; bool}{playerCopy, exists}
+			r.response <- struct {
+				player_state
+				bool
+			}{playerCopy, exists}
 		case m := <-manager.playerChangeChan:
-			player, playerExists := players[m.key] 
+			player, playerExists := players[m.key]
 			if !playerExists {
 				continue
 			}

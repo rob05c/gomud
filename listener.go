@@ -1,16 +1,17 @@
 package main
+
 import (
-	"fmt"
-	"net"
-	"strconv"
-	"io"
 	"bytes"
-	"os"
-	"strings"
-	"errors"
-	"regexp"
-	"crypto/rand"
 	"code.google.com/p/go.crypto/ripemd160"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 func handleCreatingPlayerPassVerify(managers metaManager, c net.Conn, player string, newPass string) {
@@ -26,7 +27,7 @@ func handleCreatingPlayerPassVerify(managers metaManager, c net.Conn, player str
 	}
 	fmt.Println("creating player")
 
- 	salt := make([]byte, 128)
+	salt := make([]byte, 128)
 	n, err := rand.Read(salt)
 	if n != len(salt) || err != nil {
 		fmt.Println("Error creating salt.")
@@ -43,7 +44,10 @@ func handleCreatingPlayerPassVerify(managers metaManager, c net.Conn, player str
 
 	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt}
 	managers.playerManager.createPlayer(newPlayer)
-	playerRoomAdd<- struct{player string; roomId roomIdentifier} {player, 0}
+	playerRoomAdd <- struct {
+		player string
+		roomId roomIdentifier
+	}{player, 0}
 	go handlePlayer(managers, c, player)
 	return
 }
@@ -56,7 +60,7 @@ func handleCreatingPlayerPass(managers metaManager, c net.Conn, player string) {
 	}
 	go handleCreatingPlayerPassVerify(managers, c, player, pass)
 }
-	
+
 func handleCreatingPlayer(managers metaManager, c net.Conn, player string) {
 	const playerCreateMessage = "No player by that name exists. Do you want to create a player?"
 	c.Write([]byte(playerCreateMessage + "\n"))
@@ -84,7 +88,7 @@ func handleLoginPass(managers metaManager, c net.Conn, playerName string) {
 		}
 		return // we just validated the player exists, so this shouldn't happen
 	}
-	
+
 	saltedPass := make([]byte, len(player.passthesalt)+len(pass))
 	saltedPass = append(saltedPass, player.passthesalt...)
 	saltedPass = append(saltedPass, pass...)
@@ -131,11 +135,11 @@ func handleLogin(managers metaManager, c net.Conn) {
 		}
 
 		// if the current player doesn't exist, assume the sent text is the player name
-		_, playerExists := managers.playerManager .getPlayer(player)
+		_, playerExists := managers.playerManager.getPlayer(player)
 		if !playerExists { // player wasn't found
 			go handleCreatingPlayer(managers, c, player)
 			return
-		} 
+		}
 		go handleLoginPass(managers, c, player)
 		return
 	}
@@ -200,7 +204,7 @@ func getBytesSecure(c net.Conn) ([]byte, error) {
 			} else {
 				option = byte(0)
 			}
-			
+
 			var optionInfo byte
 			if len(readBuf) > 2 {
 				optionInfo = readBuf[2]
@@ -211,11 +215,11 @@ func getBytesSecure(c net.Conn) ([]byte, error) {
 			continue
 		}
 		finalBuf = append(finalBuf, readBuf...)
- 		if len(finalBuf) == 0 {
+		if len(finalBuf) == 0 {
 			continue
 		}
 		if finalBuf[len(finalBuf)-1] == '\n' {
-			break;
+			break
 		}
 	}
 	for i := range readBuf {
@@ -256,7 +260,7 @@ func getString(c net.Conn) (string, error) {
 			} else {
 				option = byte(0)
 			}
-			
+
 			var optionInfo byte
 			if len(readBuf) > 2 {
 				optionInfo = readBuf[2]
@@ -267,11 +271,11 @@ func getString(c net.Conn) (string, error) {
 			continue
 		}
 		finalBuf = append(finalBuf, readBuf...)
- 		if len(finalBuf) == 0 {
+		if len(finalBuf) == 0 {
 			continue
 		}
 		if finalBuf[len(finalBuf)-1] == '\n' {
-			break;
+			break
 		}
 	}
 	finalBuf = bytes.Trim(finalBuf, " \r\n")
@@ -293,7 +297,7 @@ func listen(managers metaManager) {
 			port = argPort
 		}
 	}
-	ln, err := net.Listen("tcp", ":" + strconv.Itoa(port))
+	ln, err := net.Listen("tcp", ":"+strconv.Itoa(port))
 	if err != nil {
 		fmt.Println("error: " + err.Error())
 		return
