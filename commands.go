@@ -11,38 +11,35 @@ const commandRejectMessage = "I don't understand."
 
 var commands = map[string]func([]string, net.Conn, string, *metaManager){}
 
-func walk(d Direction, c net.Conn, playerName string, manager *roomManager) {
-	movePlayer(c, playerName, d, manager)
+func walk(d Direction, c net.Conn, playerName string, managers *metaManager) {
+	managers.playerLocationManager.movePlayer(c, playerName, d, managers.roomManager)
 }
 
-func look(c net.Conn, playerName string, m *roomManager) {
-	roomId, exists := playerRoom(playerName)
+func look(c net.Conn, playerName string, playerLocations *playerLocationManager, rooms *roomManager) {
+	roomId, exists := playerLocations.playerRoom(playerName)
 	if !exists {
 		fmt.Println("look called with invalid  player'" + playerName + "'")
 		return
 	}
-
-	currentRoom, exists := m.getRoom(roomId)
+	currentRoom, exists := rooms.getRoom(roomId)
 	if !exists {
 		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
 	}
-
 	c.Write([]byte(currentRoom.Print() + "\n"))
 }
 
-func quicklook(c net.Conn, playerName string, m *roomManager) {
-	roomId, exists := playerRoom(playerName)
+func quicklook(c net.Conn, playerName string, playerLocations *playerLocationManager, rooms *roomManager) {
+	roomId, exists := playerLocations.playerRoom(playerName)
 	if !exists {
 		fmt.Println("quicklook called with invalid player  '" + playerName + "'")
 		return
 	}
-	currentRoom, exists := m.getRoom(roomId)
+	currentRoom, exists := rooms.getRoom(roomId)
 	if !exists {
 		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
 	}
-
 	c.Write([]byte(currentRoom.PrintBrief() + "\n"))
 }
 
@@ -59,7 +56,7 @@ func initCommandsAdmin() {
 			fmt.Println(args[1])                          ///< @todo give more descriptive error
 			return
 		}
-		roomId, exists := playerRoom(playerName)
+		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
 		if !exists {
 			fmt.Println("makeroom called with invalid player '" + playerName + "'")
 			return
@@ -87,7 +84,7 @@ func initCommandsAdmin() {
 			return
 		}
 		toConnectRoomId := roomIdentifier(toConnectRoomIdInt)
-		roomId, exists := playerRoom(playerName)
+		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
 		if !exists {
 			fmt.Println("connectroom called with invalid player '" + playerName + "'")
 			return
@@ -123,7 +120,7 @@ func initCommandsAdmin() {
 			c.Write([]byte(commandRejectMessage + "3\n")) ///< @todo give better  error
 			return
 		}
-		roomId, exists := playerRoom(playerName)
+		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
 		if !exists {
 			fmt.Println("describeroom called with invalid player '" + playerName + "'")
 			return
@@ -143,7 +140,7 @@ func initCommandsAdmin() {
 	commands["dr"] = commands["describeroom"]
 	// just displays the current room's ID. Probably doesn't need to be an admin command
 	commands["roomid"] = func(args []string, c net.Conn, playerName string, managers *metaManager) {
-		roomId, exists := playerRoom(playerName)
+		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
 		if !exists {
 			fmt.Println("roomid called with invalid player '" + playerName + "'")
 			return
@@ -160,48 +157,47 @@ func initCommandsAdmin() {
 
 func initCommandsDirections() {
 	commands["south"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(south, c, player, managers.roomManager)
+		walk(south, c, player, managers)
 	}
 	commands["s"] = commands["south"]
 	commands["north"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(north, c, player, managers.roomManager)
+		walk(north, c, player, managers)
 	}
 	commands["n"] = commands["north"]
 	commands["east"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(east, c, player, managers.roomManager)
+		walk(east, c, player, managers)
 	}
 	commands["e"] = commands["east"]
 	commands["west"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(west, c, player, managers.roomManager)
+		walk(west, c, player, managers)
 	}
 	commands["w"] = commands["west"]
 	commands["northeast"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(northeast, c, player, managers.roomManager)
+		walk(northeast, c, player, managers)
 	}
 	commands["ne"] = commands["northeast"]
 	commands["northwest"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(northwest, c, player, managers.roomManager)
+		walk(northwest, c, player, managers)
 	}
 	commands["nw"] = commands["northwest"]
 	commands["southeast"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(southeast, c, player, managers.roomManager)
+		walk(southeast, c, player, managers)
 	}
 	commands["se"] = commands["southeast"]
 	commands["southwest"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		walk(southwest, c, player, managers.roomManager)
+		walk(southwest, c, player, managers)
 	}
 	commands["sw"] = commands["southwest"]
 }
 
 func initCommands() {
-
 	commands["look"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		look(c, player, managers.roomManager)
+		look(c, player, managers.playerLocationManager, managers.roomManager)
 	}
 	commands["l"] = commands["look"]
 
 	commands["quicklook"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		quicklook(c, player, managers.roomManager)
+		quicklook(c, player, managers.playerLocationManager, managers.roomManager)
 	}
 	commands["ql"] = commands["quicklook"]
 

@@ -44,10 +44,7 @@ func handleCreatingPlayerPassVerify(managers metaManager, c net.Conn, player str
 
 	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt}
 	managers.playerManager.createPlayer(newPlayer)
-	playerRoomAdd <- struct {
-		player string
-		roomId roomIdentifier
-	}{player, 0}
+	managers.playerLocationManager.addPlayer(player, roomIdentifier(0))
 	go handlePlayer(managers, c, player)
 	return
 }
@@ -149,7 +146,7 @@ func handleLogin(managers metaManager, c net.Conn) {
 // this handles connections for a logged-in player
 func handlePlayer(managers metaManager, c net.Conn, player string) {
 	c.Write([]byte("Welcome " + player + "!\n"))
-	look(c, player, managers.roomManager)
+	look(c, player, managers.playerLocationManager, managers.roomManager)
 	for {
 		message, error := getString(c)
 		if error != nil {
