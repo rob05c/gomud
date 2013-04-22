@@ -57,19 +57,13 @@ type playerLocationManager struct {
 	}
 }
 
-func (m playerLocationManager) movePlayer(c net.Conn, player string, direction Direction, roomMan *roomManager) {
+func (m playerLocationManager) movePlayer(c net.Conn, player string, direction Direction, postFunc func(bool)) {
 	m.playerMoveChan <- struct {
 		player    string
 		direction Direction
 		postFunc  func(bool)
-	}{player, direction, func(success bool) {
-		if !success {
-			// @todo tell the user why (no exit, blocked, etc.
-			c.Write([]byte("You can't go there.\n"))
-			return
-		}
-		go look(c, player, &m, roomMan)
-	}}
+	}{player, direction, postFunc}
+
 }
 
 func (m playerLocationManager) playerRoom(player string) (roomIdentifier, bool) {
@@ -174,7 +168,7 @@ func managePlayerLocations(manager *playerLocationManager, roomMan *roomManager)
 				bool
 			}{roomId, exists}
 		case o := <-manager.getRoomPlayersChan:
-			var playersCopy map[string]bool
+			playersCopy := map[string]bool{}
 			checkRoomMap(o.roomId)
 			for key, value := range roomPlayers[o.roomId] {
 				playersCopy[key] = value

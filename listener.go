@@ -146,7 +146,7 @@ func handleLogin(managers metaManager, c net.Conn) {
 // this handles connections for a logged-in player
 func handlePlayer(managers metaManager, c net.Conn, player string) {
 	c.Write([]byte("Welcome " + player + "!\n"))
-	look(c, player, managers.playerLocationManager, managers.roomManager)
+	look(c, player, &managers)
 	for {
 		message, error := getString(c)
 		if error != nil {

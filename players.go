@@ -7,6 +7,7 @@ package main
 // If the server closes and reopens, it must persist
 //
 type player_state struct {
+	id          identifier
 	name        string
 	passthesalt []byte
 	pass        []byte
@@ -103,6 +104,7 @@ func managePlayers(manager *playerManager) {
 			if _, exists := players[n.name]; exists {
 				continue
 			}
+			n.id = identifier(len(players))
 			players[n.name] = &n
 		}
 	}

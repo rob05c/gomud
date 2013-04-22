@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 )
 
 // @todo create roomIdentifier.String()
@@ -41,7 +42,7 @@ func (r room) printDirections() string {
 	return buffer.String()
 }
 
-func (r room) Print() string {
+func (r room) Print(managers *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -54,19 +55,44 @@ func (r room) Print() string {
 		buffer.WriteString(noDescriptionString)
 	}
 	buffer.WriteString("\n")
+	buffer.WriteString(r.printItems(managers))
 	buffer.WriteString(r.printDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
 
 // print sans description
-func (r room) PrintBrief() string {
+func (r room) PrintBrief(managers *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
 	buffer.WriteString("\n")
+	buffer.WriteString(r.printItems(managers))
 	buffer.WriteString(r.printDirections())
 	buffer.WriteString(Reset)
+	return buffer.String()
+}
+
+func (r room) printItems(managers *metaManager) string {
+	var buffer bytes.Buffer
+	buffer.WriteString(Blue)
+	buffer.WriteString("You see ")
+	items := managers.itemLocationManager.locationItems(identifier(r.id), ilRoom)
+
+	if len(items) == 0 {
+		return ""
+	}
+
+	for itemId, _ := range items {
+		it, exists := managers.itemManager.getItem(itemId)
+		if !exists {
+			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+		}
+		buffer.WriteString(it.brief)
+		buffer.WriteString(", ")
+	}
+	buffer.WriteString(Reset)
+	buffer.WriteString("\n")
 	return buffer.String()
 }
 

@@ -1,6 +1,15 @@
 package main
 
+import (
+	"strconv"
+)
+
 type itemIdentifier identifier
+
+func (i itemIdentifier) String() string {
+	return strconv.Itoa(int(i))
+	//	return identifier(i).String()
+}
 
 type item struct {
 	id     itemIdentifier
