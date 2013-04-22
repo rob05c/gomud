@@ -37,7 +37,7 @@ type itemLocationManager struct {
 	getLocationItemsChan chan struct {
 		location     identifier
 		locationType itemLocationType
-		response     chan map[itemIdentifier]bool
+		response     chan []itemIdentifier
 	}
 
 	itemMoveChan chan struct {
@@ -75,17 +75,13 @@ func (m itemLocationManager) itemLocation(id itemIdentifier) (identifier, itemLo
 	return r.location, r.locationType, r.exists
 }
 
-func (m itemLocationManager) locationItems(location identifier, locationType itemLocationType) map[itemIdentifier]bool {
-	fmt.Println("debug 0")
-	responseChan := make(chan map[itemIdentifier]bool)
-	fmt.Println("debug 1")
+func (m itemLocationManager) locationItems(location identifier, locationType itemLocationType) []itemIdentifier {
+	responseChan := make(chan []itemIdentifier)
 	m.getLocationItemsChan <- struct {
 		location     identifier
 		locationType itemLocationType
-		response     chan map[itemIdentifier]bool
+		response     chan []itemIdentifier
 	}{location, locationType, responseChan}
-
-	fmt.Println("debug 2")
 	return <-responseChan
 }
 
@@ -153,7 +149,7 @@ func newItemLocationManager() *itemLocationManager {
 		getLocationItemsChan: make(chan struct {
 			location     identifier
 			locationType itemLocationType
-			response     chan map[itemIdentifier]bool
+			response     chan []itemIdentifier
 		}),
 		itemMoveChan: make(chan struct {
 			itemId          itemIdentifier
@@ -234,12 +230,12 @@ func manageItemLocations(manager *itemLocationManager) {
 				exists       bool
 			}{location.location, location.locationType, exists}
 		case i := <-manager.getLocationItemsChan:
-			itemsCopy := map[itemIdentifier]bool{}
+			itemList := make([]itemIdentifier, 0)
 			checkLocationMap(i.location, i.locationType)
-			for key, value := range locationItems[make_location(i.location, i.locationType)] {
-				itemsCopy[key] = value
+			for key, _ := range locationItems[make_location(i.location, i.locationType)] {
+				itemList = append(itemList, key)
 			}
-			i.response <- itemsCopy
+			i.response <- itemList
 		case c := <-manager.itemMoveCheckedChan:
 			if itemLocations[c.itemId] != make_location(c.oldLocation, c.oldLocationType) {
 				go c.postFunc(false)

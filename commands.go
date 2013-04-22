@@ -341,7 +341,7 @@ func initCommandsItems() {
 		}
 
 		items := managers.itemLocationManager.locationItems(realPlayer.id, ilPlayer)
-		for itemId, _ := range items {
+		for _, itemId := range items {
 			it, exists := managers.itemManager.getItem(itemId)
 			if !exists {
 				fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
@@ -364,7 +364,7 @@ func initCommandsItems() {
 		}
 
 		items := managers.itemLocationManager.locationItems(identifier(currentRoom.id), ilRoom)
-		for itemId, _ := range items {
+		for _, itemId := range items {
 			it, exists := managers.itemManager.getItem(itemId)
 			if !exists {
 				fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")

@@ -78,12 +78,40 @@ func (r room) printItems(managers *metaManager) string {
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
 	items := managers.itemLocationManager.locationItems(identifier(r.id), ilRoom)
-
 	if len(items) == 0 {
 		return ""
 	}
-
-	for itemId, _ := range items {
+	if len(items) == 1 {
+		it, exists := managers.itemManager.getItem(items[0])
+		if !exists {
+			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
+			return ""
+		}
+		buffer.WriteString(it.brief)
+		buffer.WriteString(" here.\n")
+		buffer.WriteString(Reset)
+		return buffer.String()
+	}
+	if len(items) == 2 {
+		if itemFirst, exists := managers.itemManager.getItem(items[0]); !exists {
+			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
+		} else {
+			buffer.WriteString(itemFirst.brief)
+			buffer.WriteString(" and ")
+		}
+		if itemSecond, exists := managers.itemManager.getItem(items[1]); !exists {
+			fmt.Println("items got nonexistent item from itemLocationManager '" + items[1].String() + "'")
+			buffer.WriteString("your shadow") // see what I did there?
+		} else {
+			buffer.WriteString(itemSecond.brief)
+		}
+		buffer.WriteString(" here.\n")
+		buffer.WriteString(Reset)
+		return buffer.String()
+	}
+	lastItemId := items[len(items)-1]
+	items = items[0 : len(items)-1]
+	for _, itemId := range items {
 		it, exists := managers.itemManager.getItem(itemId)
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
@@ -91,8 +119,17 @@ func (r room) printItems(managers *metaManager) string {
 		buffer.WriteString(it.brief)
 		buffer.WriteString(", ")
 	}
+
+	buffer.WriteString("and ")
+	lastItem, exists := managers.itemManager.getItem(lastItemId)
+	if !exists {
+		fmt.Println("items got nonexistent item from itemLocationManager '" + lastItemId.String() + "'")
+		buffer.WriteString("your shadow") // see what I did there?
+	} else {
+		buffer.WriteString(lastItem.brief)
+	}
+	buffer.WriteString(" here.\n")
 	buffer.WriteString(Reset)
-	buffer.WriteString("\n")
 	return buffer.String()
 }
 
