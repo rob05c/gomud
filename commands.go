@@ -249,12 +249,6 @@ func initCommandsItems() {
 			c.Write([]byte("What do you want to get?\n"))
 			return
 		}
-		itemInt, err := strconv.Atoi(args[0])
-		if err != nil {
-			c.Write([]byte("What do you want to get?\n"))
-			return
-		}
-		itemId := itemIdentifier(itemInt)
 
 		realPlayer, exists := managers.playerManager.getPlayer(player)
 		if !exists {
@@ -274,17 +268,41 @@ func initCommandsItems() {
 			return
 		}
 
-		it, exists := managers.itemManager.getItem(itemId)
+		itemInt, err := strconv.Atoi(args[0])
+		if err != nil {
+			// getting by name, not id
+			items := managers.itemLocationManager.locationItems(identifier(roomId), ilRoom)
+			for _, itemId := range items {
+				it, exists := managers.itemManager.getItem(itemId)
+				if !exists {
+					fmt.Println("get got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+				}
+				if it.name == args[0] {
+					managers.itemLocationManager.moveItem(c, it.id, identifier(roomId), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+						if success {
+							c.Write([]byte("You pick up " + it.brief + ".\n"))
+						} else {
+							c.Write([]byte("That is not here.\n"))
+						}
+					})
+					return
+				}
+			}
+			c.Write([]byte("That is not here.\n"))
+			return
+		}
+		fmt.Println("debug got " + strconv.Itoa(itemInt))
+		it, exists := managers.itemManager.getItem(itemIdentifier(itemInt))
 		if !exists {
-			c.Write([]byte("That does not exist."))
+			c.Write([]byte("That does not exist.\n"))
 			return
 		}
 
-		managers.itemLocationManager.moveItem(c, itemId, identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+		managers.itemLocationManager.moveItem(c, it.id, identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
 			if success {
 				c.Write([]byte("You pick up " + it.brief + ".\n"))
 			} else {
-				c.Write([]byte("That is not here."))
+				c.Write([]byte("That is not here.\n"))
 			}
 		})
 	}
@@ -293,12 +311,6 @@ func initCommandsItems() {
 			c.Write([]byte("What do you want to drop?\n"))
 			return
 		}
-		itemInt, err := strconv.Atoi(args[0])
-		if err != nil {
-			c.Write([]byte("What do you want to drop?2\n"))
-			return
-		}
-		itemId := itemIdentifier(itemInt)
 
 		roomId, exists := managers.playerLocationManager.playerRoom(player)
 		if !exists {
@@ -312,23 +324,47 @@ func initCommandsItems() {
 			return
 		}
 
-		it, exists := managers.itemManager.getItem(itemId)
-		if !exists {
-			c.Write([]byte("That does not exist."))
-			return
-		}
-
 		realPlayer, exists := managers.playerManager.getPlayer(player)
 		if !exists {
 			fmt.Println("Drop called with invalid player2 '" + player + "'")
 			return
 		}
 
-		managers.itemLocationManager.moveItem(c, itemId, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+		itemInt, err := strconv.Atoi(args[0])
+		if err != nil {
+			// getting by name, not id
+			items := managers.itemLocationManager.locationItems(identifier(realPlayer.id), ilPlayer)
+			for _, itemId := range items {
+				it, exists := managers.itemManager.getItem(itemId)
+				if !exists {
+					fmt.Println("drop got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+				}
+				if it.name == args[0] {
+					managers.itemLocationManager.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+						if success {
+							c.Write([]byte("You drop " + it.brief + ".\n"))
+						} else {
+							c.Write([]byte("You are not holding that.\n"))
+						}
+					})
+					return
+				}
+			}
+			c.Write([]byte("You are not holding that.\n"))
+			return
+		}
+
+		it, exists := managers.itemManager.getItem(itemIdentifier(itemInt))
+		if !exists {
+			c.Write([]byte("That does not exist.\n"))
+			return
+		}
+
+		managers.itemLocationManager.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 			if success {
 				c.Write([]byte("You drop " + it.brief + ".\n"))
 			} else {
-				c.Write([]byte("You aren't holding that."))
+				c.Write([]byte("You aren't holding that.\n"))
 			}
 		})
 	}
