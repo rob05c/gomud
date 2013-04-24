@@ -12,7 +12,7 @@ const commandRejectMessage = "I don't understand."
 var commands = map[string]func([]string, net.Conn, string, *metaManager){}
 
 func walk(d Direction, c net.Conn, playerName string, managers *metaManager) {
-	managers.playerLocationManager.movePlayer(c, playerName, d, func(success bool) {
+	managers.playerLocations.movePlayer(c, playerName, d, func(success bool) {
 		if !success {
 			// @todo tell the user why (no exit, blocked, etc.
 			c.Write([]byte("You can't go there.\n"))
@@ -23,12 +23,12 @@ func walk(d Direction, c net.Conn, playerName string, managers *metaManager) {
 }
 
 func look(c net.Conn, playerName string, managers *metaManager) {
-	roomId, exists := managers.playerLocationManager.playerRoom(playerName)
+	roomId, exists := managers.playerLocations.playerRoom(playerName)
 	if !exists {
 		fmt.Println("look called with invalid  player'" + playerName + "'")
 		return
 	}
-	currentRoom, exists := managers.roomManager.getRoom(roomId)
+	currentRoom, exists := managers.rooms.getRoom(roomId)
 	if !exists {
 		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
@@ -37,12 +37,12 @@ func look(c net.Conn, playerName string, managers *metaManager) {
 }
 
 func quicklook(c net.Conn, playerName string, managers *metaManager) {
-	roomId, exists := managers.playerLocationManager.playerRoom(playerName)
+	roomId, exists := managers.playerLocations.playerRoom(playerName)
 	if !exists {
 		fmt.Println("quicklook called with invalid player  '" + playerName + "'")
 		return
 	}
-	currentRoom, exists := managers.roomManager.getRoom(roomId)
+	currentRoom, exists := managers.rooms.getRoom(roomId)
 	if !exists {
 		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
@@ -63,19 +63,19 @@ func initCommandsAdmin() {
 			fmt.Println(args[1])                          ///< @todo give more descriptive error
 			return
 		}
-		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
+		roomId, exists := managers.playerLocations.playerRoom(playerName)
 		if !exists {
 			fmt.Println("makeroom called with invalid player '" + playerName + "'")
 			return
 		}
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("makeroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 
 		newRoomName := strings.Join(args[1:], " ")
-		currentRoom.NewRoom(managers.roomManager, newRoomDirection, newRoomName, "")
+		currentRoom.NewRoom(managers.rooms, newRoomDirection, newRoomName, "")
 		c.Write([]byte(newRoomName + " materializes to the " + newRoomDirection.String() + ". It is nondescript and seems as though it might fade away at any moment.\n"))
 	}
 	commands["mr"] = commands["makeroom"]
@@ -91,29 +91,29 @@ func initCommandsAdmin() {
 			return
 		}
 		toConnectRoomId := roomIdentifier(toConnectRoomIdInt)
-		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
+		roomId, exists := managers.playerLocations.playerRoom(playerName)
 		if !exists {
 			fmt.Println("connectroom called with invalid player '" + playerName + "'")
 			return
 		}
 
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 
 		newRoomDirection := stringToDirection(args[0])
-		toConnectRoom, connectionRoomExists := managers.roomManager.getRoom(toConnectRoomId)
+		toConnectRoom, connectionRoomExists := managers.rooms.getRoom(toConnectRoomId)
 		if !connectionRoomExists {
 			c.Write([]byte("No room exists with the given id.\n"))
 			return
 		}
 
-		managers.roomManager.changeRoom(currentRoom.id, func(r *room) {
+		managers.rooms.changeRoom(currentRoom.id, func(r *room) {
 			r.exits[newRoomDirection] = toConnectRoom.id
 		})
-		managers.roomManager.changeRoom(toConnectRoom.id, func(r *room) {
+		managers.rooms.changeRoom(toConnectRoom.id, func(r *room) {
 			r.exits[newRoomDirection.reverse()] = currentRoom.id
 			go func() {
 				c.Write([]byte("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".\n"))
@@ -127,17 +127,17 @@ func initCommandsAdmin() {
 			c.Write([]byte(commandRejectMessage + "3\n")) ///< @todo give better  error
 			return
 		}
-		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
+		roomId, exists := managers.playerLocations.playerRoom(playerName)
 		if !exists {
 			fmt.Println("describeroom called with invalid player '" + playerName + "'")
 			return
 		}
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
-		managers.roomManager.changeRoom(currentRoom.id, func(r *room) {
+		managers.rooms.changeRoom(currentRoom.id, func(r *room) {
 			r.description = strings.Join(args[0:], " ")
 			go func() {
 				c.Write([]byte("Everything seems a bit more corporeal.\n"))
@@ -147,13 +147,13 @@ func initCommandsAdmin() {
 	commands["dr"] = commands["describeroom"]
 	// just displays the current room's ID. Probably doesn't need to be an admin command
 	commands["roomid"] = func(args []string, c net.Conn, playerName string, managers *metaManager) {
-		roomId, exists := managers.playerLocationManager.playerRoom(playerName)
+		roomId, exists := managers.playerLocations.playerRoom(playerName)
 		if !exists {
 			fmt.Println("roomid called with invalid player '" + playerName + "'")
 			return
 		}
 
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("connectroom called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 			return
@@ -174,13 +174,13 @@ func initCommandsAdmin() {
 			brief:  "An amorphous blob",
 			long:   "What an incredibly ugly amorphous blob. The deities of creation really flubbed this one up.",
 			ground: "A hideous amorphous blob quivers here."}
-		id := managers.itemManager.createItem(it)
-		player, exists := managers.playerManager.getPlayer(playerName)
+		id := managers.items.createItem(it)
+		player, exists := managers.players.getPlayer(playerName)
 		if !exists {
 			fmt.Println("createitem called with invalid player '" + playerName + "'")
 			return
 		}
-		managers.itemLocationManager.addItem(id, identifier(player.id), ilPlayer)
+		managers.itemLocations.addItem(id, identifier(player.id), ilPlayer)
 		c.Write([]byte("A " + itemName + " materialies in your hands.\n"))
 	}
 
@@ -196,12 +196,12 @@ func initCommandsAdmin() {
 			return
 		}
 		itemId := itemIdentifier(itemInt)
-		it, exists := managers.itemManager.getItem(itemId)
+		it, exists := managers.items.getItem(itemId)
 		if !exists {
 			c.Write([]byte("That does not exist.\n"))
 			return
 		}
-		managers.itemManager.changeItem(itemId, func(i *item) {
+		managers.items.changeItem(itemId, func(i *item) {
 			i.brief = strings.Join(args[1:], " ")
 			c.Write([]byte("The " + it.name + " seems less ugly than it was.\n"))
 		})
@@ -250,19 +250,19 @@ func initCommandsItems() {
 			return
 		}
 
-		realPlayer, exists := managers.playerManager.getPlayer(player)
+		realPlayer, exists := managers.players.getPlayer(player)
 		if !exists {
 			fmt.Println("get called with invalid player2 '" + player + "'")
 			return
 		}
 
-		roomId, exists := managers.playerLocationManager.playerRoom(player)
+		roomId, exists := managers.playerLocations.playerRoom(player)
 		if !exists {
 			fmt.Println("get called with invalid player '" + player + "'")
 			return
 		}
 
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("get called with player with invalid room '" + player + "' " + strconv.Itoa(int(roomId)))
 			return
@@ -271,14 +271,14 @@ func initCommandsItems() {
 		itemInt, err := strconv.Atoi(args[0])
 		if err != nil {
 			// getting by name, not id
-			items := managers.itemLocationManager.locationItems(identifier(roomId), ilRoom)
+			items := managers.itemLocations.locationItems(identifier(roomId), ilRoom)
 			for _, itemId := range items {
-				it, exists := managers.itemManager.getItem(itemId)
+				it, exists := managers.items.getItem(itemId)
 				if !exists {
 					fmt.Println("get got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 				}
 				if it.name == args[0] {
-					managers.itemLocationManager.moveItem(c, it.id, identifier(roomId), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+					managers.itemLocations.moveItem(c, it.id, identifier(roomId), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
 						if success {
 							c.Write([]byte("You pick up " + it.brief + ".\n"))
 						} else {
@@ -292,13 +292,13 @@ func initCommandsItems() {
 			return
 		}
 		fmt.Println("debug got " + strconv.Itoa(itemInt))
-		it, exists := managers.itemManager.getItem(itemIdentifier(itemInt))
+		it, exists := managers.items.getItem(itemIdentifier(itemInt))
 		if !exists {
 			c.Write([]byte("That does not exist.\n"))
 			return
 		}
 
-		managers.itemLocationManager.moveItem(c, it.id, identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+		managers.itemLocations.moveItem(c, it.id, identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
 			if success {
 				c.Write([]byte("You pick up " + it.brief + ".\n"))
 			} else {
@@ -312,19 +312,19 @@ func initCommandsItems() {
 			return
 		}
 
-		roomId, exists := managers.playerLocationManager.playerRoom(player)
+		roomId, exists := managers.playerLocations.playerRoom(player)
 		if !exists {
 			fmt.Println("drop called with invalid player '" + player + "'")
 			return
 		}
 
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("drop called with player with invalid room '" + player + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 
-		realPlayer, exists := managers.playerManager.getPlayer(player)
+		realPlayer, exists := managers.players.getPlayer(player)
 		if !exists {
 			fmt.Println("Drop called with invalid player2 '" + player + "'")
 			return
@@ -333,14 +333,14 @@ func initCommandsItems() {
 		itemInt, err := strconv.Atoi(args[0])
 		if err != nil {
 			// getting by name, not id
-			items := managers.itemLocationManager.locationItems(identifier(realPlayer.id), ilPlayer)
+			items := managers.itemLocations.locationItems(identifier(realPlayer.id), ilPlayer)
 			for _, itemId := range items {
-				it, exists := managers.itemManager.getItem(itemId)
+				it, exists := managers.items.getItem(itemId)
 				if !exists {
 					fmt.Println("drop got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 				}
 				if it.name == args[0] {
-					managers.itemLocationManager.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+					managers.itemLocations.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 						if success {
 							c.Write([]byte("You drop " + it.brief + ".\n"))
 						} else {
@@ -354,13 +354,13 @@ func initCommandsItems() {
 			return
 		}
 
-		it, exists := managers.itemManager.getItem(itemIdentifier(itemInt))
+		it, exists := managers.items.getItem(itemIdentifier(itemInt))
 		if !exists {
 			c.Write([]byte("That does not exist.\n"))
 			return
 		}
 
-		managers.itemLocationManager.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+		managers.itemLocations.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 			if success {
 				c.Write([]byte("You drop " + it.brief + ".\n"))
 			} else {
@@ -370,15 +370,15 @@ func initCommandsItems() {
 	}
 
 	commands["items"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		realPlayer, exists := managers.playerManager.getPlayer(player)
+		realPlayer, exists := managers.players.getPlayer(player)
 		if !exists {
 			fmt.Println("Drop called with invalid player2 '" + player + "'")
 			return
 		}
 
-		items := managers.itemLocationManager.locationItems(realPlayer.id, ilPlayer)
+		items := managers.itemLocations.locationItems(realPlayer.id, ilPlayer)
 		for _, itemId := range items {
-			it, exists := managers.itemManager.getItem(itemId)
+			it, exists := managers.items.getItem(itemId)
 			if !exists {
 				fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 			}
@@ -388,19 +388,19 @@ func initCommandsItems() {
 	commands["ii"] = commands["items"]
 
 	commands["inventory"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		realPlayer, exists := managers.playerManager.getPlayer(player)
+		realPlayer, exists := managers.players.getPlayer(player)
 		if !exists {
 			fmt.Println("inventory called with invalid player2 '" + player + "'")
 			return
 		}
-		items := managers.itemLocationManager.locationItems(realPlayer.id, ilPlayer)
+		items := managers.itemLocations.locationItems(realPlayer.id, ilPlayer)
 		if len(items) == 0 {
 			c.Write([]byte("You aren't carrying anything.\n"))
 			return
 		}
 		s := "You are carrying "
 		if len(items) == 1 {
-			it, exists := managers.itemManager.getItem(items[0])
+			it, exists := managers.items.getItem(items[0])
 			if !exists {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 				s += "nothing of interest."
@@ -413,7 +413,7 @@ func initCommandsItems() {
 			return
 		}
 		if len(items) == 2 {
-			it, exists := managers.itemManager.getItem(items[0])
+			it, exists := managers.items.getItem(items[0])
 			if !exists {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 				s += "nothing of interest"
@@ -421,7 +421,7 @@ func initCommandsItems() {
 				s += it.brief
 			}
 			s += ", "
-			it, exists = managers.itemManager.getItem(items[1])
+			it, exists = managers.items.getItem(items[1])
 			if !exists {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[1].String() + "'")
 				s += "nothing of interest"
@@ -436,13 +436,13 @@ func initCommandsItems() {
 		lastItem := items[len(items)-1]
 		items = items[:len(items)-1]
 		for _, itemId := range items {
-			it, exists := managers.itemManager.getItem(itemId)
+			it, exists := managers.items.getItem(itemId)
 			if !exists {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 			}
 			s += it.brief + ", "
 		}
-		it, exists := managers.itemManager.getItem(lastItem)
+		it, exists := managers.items.getItem(lastItem)
 		if !exists {
 			fmt.Println("inventory got nonexistent item from itemLocationManager '" + lastItem.String() + "'")
 			s += "nothing of interest"
@@ -456,21 +456,21 @@ func initCommandsItems() {
 	commands["i"] = commands["inventory"]
 
 	commands["itemshere"] = func(args []string, c net.Conn, player string, managers *metaManager) {
-		roomId, exists := managers.playerLocationManager.playerRoom(player)
+		roomId, exists := managers.playerLocations.playerRoom(player)
 		if !exists {
 			fmt.Println("items called with invalid player '" + player + "'")
 			return
 		}
 
-		currentRoom, exists := managers.roomManager.getRoom(roomId)
+		currentRoom, exists := managers.rooms.getRoom(roomId)
 		if !exists {
 			fmt.Println("items called with player with invalid room '" + player + "' " + strconv.Itoa(int(roomId)))
 			return
 		}
 
-		items := managers.itemLocationManager.locationItems(identifier(currentRoom.id), ilRoom)
+		items := managers.itemLocations.locationItems(identifier(currentRoom.id), ilRoom)
 		for _, itemId := range items {
-			it, exists := managers.itemManager.getItem(itemId)
+			it, exists := managers.items.getItem(itemId)
 			if !exists {
 				fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 			}

@@ -77,12 +77,12 @@ func (r room) printItems(managers *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
-	items := managers.itemLocationManager.locationItems(identifier(r.id), ilRoom)
+	items := managers.itemLocations.locationItems(identifier(r.id), ilRoom)
 	if len(items) == 0 {
 		return ""
 	}
 	if len(items) == 1 {
-		it, exists := managers.itemManager.getItem(items[0])
+		it, exists := managers.items.getItem(items[0])
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 			return ""
@@ -93,13 +93,13 @@ func (r room) printItems(managers *metaManager) string {
 		return buffer.String()
 	}
 	if len(items) == 2 {
-		if itemFirst, exists := managers.itemManager.getItem(items[0]); !exists {
+		if itemFirst, exists := managers.items.getItem(items[0]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 		} else {
 			buffer.WriteString(itemFirst.brief)
 			buffer.WriteString(" and ")
 		}
-		if itemSecond, exists := managers.itemManager.getItem(items[1]); !exists {
+		if itemSecond, exists := managers.items.getItem(items[1]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[1].String() + "'")
 			buffer.WriteString("your shadow") // see what I did there?
 		} else {
@@ -112,7 +112,7 @@ func (r room) printItems(managers *metaManager) string {
 	lastItemId := items[len(items)-1]
 	items = items[0 : len(items)-1]
 	for _, itemId := range items {
-		it, exists := managers.itemManager.getItem(itemId)
+		it, exists := managers.items.getItem(itemId)
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 		}
@@ -121,7 +121,7 @@ func (r room) printItems(managers *metaManager) string {
 	}
 
 	buffer.WriteString("and ")
-	lastItem, exists := managers.itemManager.getItem(lastItemId)
+	lastItem, exists := managers.items.getItem(lastItemId)
 	if !exists {
 		fmt.Println("items got nonexistent item from itemLocationManager '" + lastItemId.String() + "'")
 		buffer.WriteString("your shadow") // see what I did there?

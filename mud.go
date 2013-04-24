@@ -8,11 +8,11 @@ const invalidIdentifier = identifier(-1)
 
 // @todo rename managers to world.rooms, world.playerLocations, world.players.
 type metaManager struct {
-	*playerManager
-	*roomManager
-	*itemManager
-	*playerLocationManager
-	*itemLocationManager
+	players         *playerManager
+	rooms           *roomManager
+	items           *itemManager
+	playerLocations *playerLocationManager
+	itemLocations   *itemLocationManager
 }
 
 func initialize() metaManager {

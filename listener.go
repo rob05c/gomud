@@ -43,8 +43,8 @@ func handleCreatingPlayerPassVerify(managers metaManager, c net.Conn, player str
 	hashedPass := h.Sum(nil)
 
 	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt}
-	managers.playerManager.createPlayer(newPlayer)
-	managers.playerLocationManager.addPlayer(player, roomIdentifier(0))
+	managers.players.createPlayer(newPlayer)
+	managers.playerLocations.addPlayer(player, roomIdentifier(0))
 	go handlePlayer(managers, c, player)
 	return
 }
@@ -78,7 +78,7 @@ func handleLoginPass(managers metaManager, c net.Conn, playerName string) {
 	if err != nil {
 		return
 	}
-	player, exists := managers.playerManager.getPlayer(playerName)
+	player, exists := managers.players.getPlayer(playerName)
 	if !exists {
 		for i := range pass {
 			pass[i] = 0
@@ -132,7 +132,7 @@ func handleLogin(managers metaManager, c net.Conn) {
 		}
 
 		// if the current player doesn't exist, assume the sent text is the player name
-		_, playerExists := managers.playerManager.getPlayer(player)
+		_, playerExists := managers.players.getPlayer(player)
 		if !playerExists { // player wasn't found
 			go handleCreatingPlayer(managers, c, player)
 			return
