@@ -386,6 +386,75 @@ func initCommandsItems() {
 		}
 	}
 	commands["ii"] = commands["items"]
+
+	commands["inventory"] = func(args []string, c net.Conn, player string, managers *metaManager) {
+		realPlayer, exists := managers.playerManager.getPlayer(player)
+		if !exists {
+			fmt.Println("inventory called with invalid player2 '" + player + "'")
+			return
+		}
+		items := managers.itemLocationManager.locationItems(realPlayer.id, ilPlayer)
+		if len(items) == 0 {
+			c.Write([]byte("You aren't carrying anything.\n"))
+			return
+		}
+		s := "You are carrying "
+		if len(items) == 1 {
+			it, exists := managers.itemManager.getItem(items[0])
+			if !exists {
+				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
+				s += "nothing of interest."
+				c.Write([]byte(s))
+				return
+			}
+			s += it.brief
+			s += ".\n"
+			c.Write([]byte(s))
+			return
+		}
+		if len(items) == 2 {
+			it, exists := managers.itemManager.getItem(items[0])
+			if !exists {
+				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
+				s += "nothing of interest"
+			} else {
+				s += it.brief
+			}
+			s += ", "
+			it, exists = managers.itemManager.getItem(items[1])
+			if !exists {
+				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[1].String() + "'")
+				s += "nothing of interest"
+			} else {
+				s += it.brief
+			}
+			s += ".\n"
+			c.Write([]byte(s))
+			return
+		}
+
+		lastItem := items[len(items)-1]
+		items = items[:len(items)-1]
+		for _, itemId := range items {
+			it, exists := managers.itemManager.getItem(itemId)
+			if !exists {
+				fmt.Println("inventory got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+			}
+			s += it.brief + ", "
+		}
+		it, exists := managers.itemManager.getItem(lastItem)
+		if !exists {
+			fmt.Println("inventory got nonexistent item from itemLocationManager '" + lastItem.String() + "'")
+			s += "nothing of interest"
+		} else {
+			s += it.brief
+		}
+		s += ".\n"
+		c.Write([]byte(s))
+	}
+	commands["inv"] = commands["inventory"]
+	commands["i"] = commands["inventory"]
+
 	commands["itemshere"] = func(args []string, c net.Conn, player string, managers *metaManager) {
 		roomId, exists := managers.playerLocationManager.playerRoom(player)
 		if !exists {
