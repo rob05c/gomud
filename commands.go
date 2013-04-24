@@ -33,7 +33,7 @@ func look(c net.Conn, playerName string, world *metaManager) {
 		fmt.Println("look called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
 	}
-	c.Write([]byte(currentRoom.Print(world) + "\n"))
+	c.Write([]byte(currentRoom.Print(world, playerName) + "\n"))
 }
 
 func quicklook(c net.Conn, playerName string, world *metaManager) {
@@ -47,7 +47,7 @@ func quicklook(c net.Conn, playerName string, world *metaManager) {
 		fmt.Println("quicklook called with player with invalid room '" + playerName + "' " + strconv.Itoa(int(roomId)))
 		return
 	}
-	c.Write([]byte(currentRoom.PrintBrief(world) + "\n"))
+	c.Write([]byte(currentRoom.PrintBrief(world, playerName) + "\n"))
 }
 
 func initCommandsAdmin() {

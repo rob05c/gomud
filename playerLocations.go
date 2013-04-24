@@ -30,7 +30,7 @@ type playerLocationManager struct {
 	}
 	getRoomPlayersChan chan struct {
 		roomId   roomIdentifier
-		response chan map[string]bool
+		response chan []string
 	}
 
 	playerMoveChan chan struct {
@@ -82,11 +82,11 @@ func (m playerLocationManager) playerRoom(player string) (roomIdentifier, bool) 
 	return response.roomIdentifier, response.bool
 }
 
-func (m playerLocationManager) roomPlayers(r roomIdentifier) map[string]bool {
-	responseChan := make(chan map[string]bool)
+func (m playerLocationManager) roomPlayers(r roomIdentifier) []string {
+	responseChan := make(chan []string)
 	m.getRoomPlayersChan <- struct {
 		roomId   roomIdentifier
-		response chan map[string]bool
+		response chan []string
 	}{r, responseChan}
 	return <-responseChan
 }
@@ -113,7 +113,7 @@ func newPlayerLocationManager(roomMan *roomManager) *playerLocationManager {
 		}),
 		getRoomPlayersChan: make(chan struct {
 			roomId   roomIdentifier
-			response chan map[string]bool
+			response chan []string
 		}),
 		playerMoveChan: make(chan struct {
 			player    string
@@ -168,10 +168,10 @@ func managePlayerLocations(manager *playerLocationManager, roomMan *roomManager)
 				bool
 			}{roomId, exists}
 		case o := <-manager.getRoomPlayersChan:
-			playersCopy := map[string]bool{}
+			playersCopy := []string{}
 			checkRoomMap(o.roomId)
-			for key, value := range roomPlayers[o.roomId] {
-				playersCopy[key] = value
+			for key, _ := range roomPlayers[o.roomId] {
+				playersCopy = append(playersCopy, key)
 			}
 			o.response <- playersCopy
 		case a := <-manager.playerRoomAddChan:

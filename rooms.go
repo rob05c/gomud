@@ -42,7 +42,7 @@ func (r room) printDirections() string {
 	return buffer.String()
 }
 
-func (r room) Print(world *metaManager) string {
+func (r room) Print(world *metaManager, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -56,18 +56,20 @@ func (r room) Print(world *metaManager) string {
 	}
 	buffer.WriteString("\n")
 	buffer.WriteString(r.printItems(world))
+	buffer.WriteString(r.printPlayers(world, playerName))
 	buffer.WriteString(r.printDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
 
 // print sans description
-func (r room) PrintBrief(world *metaManager) string {
+func (r room) PrintBrief(world *metaManager, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
 	buffer.WriteString("\n")
 	buffer.WriteString(r.printItems(world))
+	buffer.WriteString(r.printPlayers(world, playerName))
 	buffer.WriteString(r.printDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
@@ -129,6 +131,49 @@ func (r room) printItems(world *metaManager) string {
 		buffer.WriteString(lastItem.brief)
 	}
 	buffer.WriteString(" here.\n")
+	buffer.WriteString(Reset)
+	return buffer.String()
+}
+
+func (r room) printPlayers(world *metaManager, currentPlayer string) string {
+	var buffer bytes.Buffer
+	buffer.WriteString(Darkcyan)
+
+	players := world.playerLocations.roomPlayers(r.id)
+	for i, player := range players {
+		if player == currentPlayer {
+			players = append(players[:i], players[i+1:]...)
+			break
+		}
+	}
+
+	if len(players) == 0 {
+		return ""
+	}
+	if len(players) == 1 {
+		buffer.WriteString(players[0])
+		buffer.WriteString(" is here.\n")
+		buffer.WriteString(Reset)
+		return buffer.String()
+	}
+	if len(players) == 2 {
+		buffer.WriteString(players[0])
+		buffer.WriteString(" and ")
+		buffer.WriteString(players[1])
+		buffer.WriteString(" are here.\n")
+		buffer.WriteString(Reset)
+		return buffer.String()
+	}
+	lastPlayer := players[len(players)-1]
+	players = players[0 : len(players)-1]
+	for _, player := range players {
+		buffer.WriteString(player)
+		buffer.WriteString(", ")
+	}
+
+	buffer.WriteString("and ")
+	buffer.WriteString(lastPlayer)
+	buffer.WriteString(" are here.\n")
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
