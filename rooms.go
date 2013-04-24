@@ -42,7 +42,7 @@ func (r room) printDirections() string {
 	return buffer.String()
 }
 
-func (r room) Print(managers *metaManager) string {
+func (r room) Print(world *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -55,34 +55,34 @@ func (r room) Print(managers *metaManager) string {
 		buffer.WriteString(noDescriptionString)
 	}
 	buffer.WriteString("\n")
-	buffer.WriteString(r.printItems(managers))
+	buffer.WriteString(r.printItems(world))
 	buffer.WriteString(r.printDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
 
 // print sans description
-func (r room) PrintBrief(managers *metaManager) string {
+func (r room) PrintBrief(world *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
 	buffer.WriteString("\n")
-	buffer.WriteString(r.printItems(managers))
+	buffer.WriteString(r.printItems(world))
 	buffer.WriteString(r.printDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
 
-func (r room) printItems(managers *metaManager) string {
+func (r room) printItems(world *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
-	items := managers.itemLocations.locationItems(identifier(r.id), ilRoom)
+	items := world.itemLocations.locationItems(identifier(r.id), ilRoom)
 	if len(items) == 0 {
 		return ""
 	}
 	if len(items) == 1 {
-		it, exists := managers.items.getItem(items[0])
+		it, exists := world.items.getItem(items[0])
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 			return ""
@@ -93,13 +93,13 @@ func (r room) printItems(managers *metaManager) string {
 		return buffer.String()
 	}
 	if len(items) == 2 {
-		if itemFirst, exists := managers.items.getItem(items[0]); !exists {
+		if itemFirst, exists := world.items.getItem(items[0]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 		} else {
 			buffer.WriteString(itemFirst.brief)
 			buffer.WriteString(" and ")
 		}
-		if itemSecond, exists := managers.items.getItem(items[1]); !exists {
+		if itemSecond, exists := world.items.getItem(items[1]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[1].String() + "'")
 			buffer.WriteString("your shadow") // see what I did there?
 		} else {
@@ -112,7 +112,7 @@ func (r room) printItems(managers *metaManager) string {
 	lastItemId := items[len(items)-1]
 	items = items[0 : len(items)-1]
 	for _, itemId := range items {
-		it, exists := managers.items.getItem(itemId)
+		it, exists := world.items.getItem(itemId)
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 		}
@@ -121,7 +121,7 @@ func (r room) printItems(managers *metaManager) string {
 	}
 
 	buffer.WriteString("and ")
-	lastItem, exists := managers.items.getItem(lastItemId)
+	lastItem, exists := world.items.getItem(lastItemId)
 	if !exists {
 		fmt.Println("items got nonexistent item from itemLocationManager '" + lastItemId.String() + "'")
 		buffer.WriteString("your shadow") // see what I did there?

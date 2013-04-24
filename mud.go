@@ -6,7 +6,6 @@ type identifier int32
 
 const invalidIdentifier = identifier(-1)
 
-// @todo rename managers to world.rooms, world.playerLocations, world.players.
 type metaManager struct {
 	players         *playerManager
 	rooms           *roomManager
@@ -32,6 +31,6 @@ func initialize() metaManager {
 }
 
 func main() {
-	managers := initialize()
-	listen(managers)
+	world := initialize()
+	listen(world)
 }
