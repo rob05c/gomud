@@ -183,7 +183,7 @@ func initCommandsAdmin() {
 		world.itemLocations.addItem(id, identifier(player.id), ilPlayer)
 		c.Write([]byte("A " + itemName + " materialies in your hands.\n"))
 	}
-
+	commands["ci"] = commands["createitem"]
 	commands["describeitem"] = func(args []string, c net.Conn, playerName string, world *metaManager) {
 		if len(args) < 2 {
 			c.Write([]byte("What do you want to describe?\n"))
@@ -206,6 +206,7 @@ func initCommandsAdmin() {
 			c.Write([]byte("The " + it.name + " seems less ugly than it was.\n"))
 		})
 	}
+	commands["di"] = commands["describeitem"]
 }
 
 func initCommandsDirections() {
@@ -306,6 +307,7 @@ func initCommandsItems() {
 			}
 		})
 	}
+	commands["g"] = commands["get"]
 	commands["drop"] = func(args []string, c net.Conn, player string, world *metaManager) {
 		if len(args) < 1 {
 			c.Write([]byte("What do you want to drop?\n"))
