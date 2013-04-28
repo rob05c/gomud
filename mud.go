@@ -1,8 +1,16 @@
 package main
 
+import (
+	"strconv"
+)
+
 const defaultPort = 9241
 
 type identifier int32
+
+func (i identifier) String() string {
+	return strconv.Itoa(int(i))
+}
 
 const invalidIdentifier = identifier(-1)
 

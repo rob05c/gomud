@@ -168,12 +168,11 @@ func initCommandsAdmin() {
 			return
 		}
 		itemName := args[0]
-		it := item{
-			id:     itemIdentifier(invalidIdentifier),
-			name:   itemName,
-			brief:  "An amorphous blob",
-			long:   "What an incredibly ugly amorphous blob. The deities of creation really flubbed this one up.",
-			ground: "A hideous amorphous blob quivers here."}
+		var it item = genericItem{
+			id:    itemIdentifier(invalidIdentifier),
+			name:  itemName,
+			brief: "An amorphous blob"}
+
 		id := world.items.createItem(it)
 		player, exists := world.players.getPlayer(playerName)
 		if !exists {
@@ -196,14 +195,18 @@ func initCommandsAdmin() {
 			return
 		}
 		itemId := itemIdentifier(itemInt)
-		it, exists := world.items.getItem(itemId)
-		if !exists {
-			c.Write([]byte("That does not exist.\n"))
-			return
-		}
+
+		newDescription := strings.Join(args[1:], " ")
+
 		world.items.changeItem(itemId, func(i *item) {
-			i.brief = strings.Join(args[1:], " ")
-			c.Write([]byte("The " + it.name + " seems less ugly than it was.\n"))
+			it, ok := (*i).(genericItem)
+			if !ok {
+				c.Write([]byte("That is not an item."))
+				return
+			}
+			it.brief = newDescription
+			*i = it
+			c.Write([]byte("The " + (*i).Name() + " seems less ugly than it was.\n"))
 		})
 	}
 	commands["di"] = commands["describeitem"]
@@ -278,10 +281,10 @@ func initCommandsItems() {
 				if !exists {
 					fmt.Println("get got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 				}
-				if it.name == args[0] {
-					world.itemLocations.moveItem(c, it.id, identifier(roomId), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+				if it.Name() == args[0] {
+					world.itemLocations.moveItem(c, it.Id(), identifier(roomId), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
 						if success {
-							c.Write([]byte("You pick up " + it.brief + ".\n"))
+							c.Write([]byte("You pick up " + it.Brief() + ".\n"))
 						} else {
 							c.Write([]byte("That is not here.\n"))
 						}
@@ -299,9 +302,9 @@ func initCommandsItems() {
 			return
 		}
 
-		world.itemLocations.moveItem(c, it.id, identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+		world.itemLocations.moveItem(c, it.Id(), identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
 			if success {
-				c.Write([]byte("You pick up " + it.brief + ".\n"))
+				c.Write([]byte("You pick up " + it.Brief() + ".\n"))
 			} else {
 				c.Write([]byte("That is not here.\n"))
 			}
@@ -341,10 +344,10 @@ func initCommandsItems() {
 				if !exists {
 					fmt.Println("drop got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 				}
-				if it.name == args[0] {
-					world.itemLocations.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+				if it.Name() == args[0] {
+					world.itemLocations.moveItem(c, it.Id(), realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 						if success {
-							c.Write([]byte("You drop " + it.brief + ".\n"))
+							c.Write([]byte("You drop " + it.Brief() + ".\n"))
 						} else {
 							c.Write([]byte("You are not holding that.\n"))
 						}
@@ -362,9 +365,9 @@ func initCommandsItems() {
 			return
 		}
 
-		world.itemLocations.moveItem(c, it.id, realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+		world.itemLocations.moveItem(c, it.Id(), realPlayer.id, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 			if success {
-				c.Write([]byte("You drop " + it.brief + ".\n"))
+				c.Write([]byte("You drop " + it.Brief() + ".\n"))
 			} else {
 				c.Write([]byte("You aren't holding that.\n"))
 			}
@@ -384,7 +387,7 @@ func initCommandsItems() {
 			if !exists {
 				fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 			}
-			c.Write([]byte(it.id.String() + it.name + "\n"))
+			c.Write([]byte(it.Id().String() + it.Name() + "\n"))
 		}
 	}
 	commands["ii"] = commands["items"]
@@ -409,7 +412,7 @@ func initCommandsItems() {
 				c.Write([]byte(s))
 				return
 			}
-			s += it.brief
+			s += it.Brief()
 			s += ".\n"
 			c.Write([]byte(s))
 			return
@@ -420,7 +423,7 @@ func initCommandsItems() {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 				s += "nothing of interest"
 			} else {
-				s += it.brief
+				s += it.Brief()
 			}
 			s += ", "
 			it, exists = world.items.getItem(items[1])
@@ -428,7 +431,7 @@ func initCommandsItems() {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[1].String() + "'")
 				s += "nothing of interest"
 			} else {
-				s += it.brief
+				s += it.Brief()
 			}
 			s += ".\n"
 			c.Write([]byte(s))
@@ -442,14 +445,14 @@ func initCommandsItems() {
 			if !exists {
 				fmt.Println("inventory got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 			}
-			s += it.brief + ", "
+			s += it.Brief() + ", "
 		}
 		it, exists := world.items.getItem(lastItem)
 		if !exists {
 			fmt.Println("inventory got nonexistent item from itemLocationManager '" + lastItem.String() + "'")
 			s += "nothing of interest"
 		} else {
-			s += it.brief
+			s += it.Brief()
 		}
 		s += ".\n"
 		c.Write([]byte(s))
@@ -476,7 +479,7 @@ func initCommandsItems() {
 			if !exists {
 				fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 			}
-			c.Write([]byte(it.id.String() + it.name + "\t" + it.brief + "\n"))
+			c.Write([]byte(it.Id().String() + it.Name() + "\t" + it.Brief() + "\n"))
 		}
 	}
 	commands["ih"] = commands["itemshere"]

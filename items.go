@@ -1,22 +1,37 @@
 package main
 
 import (
-	"strconv"
+	"fmt"
 )
 
 type itemIdentifier identifier
 
 func (i itemIdentifier) String() string {
-	return strconv.Itoa(int(i))
-	//	return identifier(i).String()
+	return identifier(i).String()
 }
 
-type item struct {
-	id     itemIdentifier
-	name   string
-	brief  string
-	long   string
-	ground string
+type item interface {
+	Id() itemIdentifier
+	Name() string
+	Brief() string
+}
+
+type genericItem struct {
+	id    itemIdentifier
+	name  string
+	brief string
+}
+
+func (i genericItem) Id() itemIdentifier {
+	return i.id
+}
+
+func (i genericItem) Name() string {
+	return i.name
+}
+
+func (i genericItem) Brief() string {
+	return i.brief
 }
 
 type itemManager struct {
@@ -100,7 +115,7 @@ func manageItems(manager *itemManager) {
 			if exists {
 				itemCopy = *i
 			} else {
-				itemCopy = item{id: -1}
+				itemCopy = genericItem{id: -1}
 			}
 			r.response <- struct {
 				item
@@ -113,9 +128,16 @@ func manageItems(manager *itemManager) {
 			}
 			h.modify(i)
 		case c := <-manager.create:
-			c.newItem.id = itemIdentifier(len(items))
-			items[c.newItem.id] = &c.newItem
-			c.response <- c.newItem.id
+			switch t := c.newItem.(type) {
+			case genericItem:
+				t.id = itemIdentifier(len(items))
+				c.newItem = t
+			default:
+				fmt.Println("Could not create unknown item. Manager must be aware of item type.")
+				return
+			}
+			items[c.newItem.Id()] = &c.newItem
+			c.response <- c.newItem.Id()
 		}
 	}
 }

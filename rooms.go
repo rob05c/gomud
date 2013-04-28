@@ -89,7 +89,7 @@ func (r room) printItems(world *metaManager) string {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 			return ""
 		}
-		buffer.WriteString(it.brief)
+		buffer.WriteString(it.Brief())
 		buffer.WriteString(" here.\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
@@ -98,14 +98,14 @@ func (r room) printItems(world *metaManager) string {
 		if itemFirst, exists := world.items.getItem(items[0]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 		} else {
-			buffer.WriteString(itemFirst.brief)
+			buffer.WriteString(itemFirst.Brief())
 			buffer.WriteString(" and ")
 		}
 		if itemSecond, exists := world.items.getItem(items[1]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[1].String() + "'")
 			buffer.WriteString("your shadow") // see what I did there?
 		} else {
-			buffer.WriteString(itemSecond.brief)
+			buffer.WriteString(itemSecond.Brief())
 		}
 		buffer.WriteString(" here.\n")
 		buffer.WriteString(Reset)
@@ -118,7 +118,7 @@ func (r room) printItems(world *metaManager) string {
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 		}
-		buffer.WriteString(it.brief)
+		buffer.WriteString(it.Brief())
 		buffer.WriteString(", ")
 	}
 
@@ -128,7 +128,7 @@ func (r room) printItems(world *metaManager) string {
 		fmt.Println("items got nonexistent item from itemLocationManager '" + lastItemId.String() + "'")
 		buffer.WriteString("your shadow") // see what I did there?
 	} else {
-		buffer.WriteString(lastItem.brief)
+		buffer.WriteString(lastItem.Brief())
 	}
 	buffer.WriteString(" here.\n")
 	buffer.WriteString(Reset)
