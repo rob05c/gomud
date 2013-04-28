@@ -180,9 +180,32 @@ func initCommandsAdmin() {
 			return
 		}
 		world.itemLocations.addItem(id, identifier(player.id), ilPlayer)
-		c.Write([]byte("A " + itemName + " materialies in your hands.\n"))
+		c.Write([]byte("A " + itemName + " materialises in your hands.\n"))
 	}
 	commands["ci"] = commands["createitem"]
+
+	commands["createnpc"] = func(args []string, c net.Conn, playerName string, world *metaManager) {
+		if len(args) < 1 {
+			c.Write([]byte("What do you want to create?\n"))
+			return
+		}
+		itemName := args[0]
+		var it item = npc{
+			id:    itemIdentifier(invalidIdentifier),
+			name:  itemName,
+			brief: "A mysterious figure"}
+
+		id := world.items.createItem(it)
+		player, exists := world.players.getPlayer(playerName)
+		if !exists {
+			fmt.Println("createnpc called with invalid player '" + playerName + "'")
+			return
+		}
+		world.itemLocations.addItem(id, identifier(player.id), ilPlayer)
+		c.Write([]byte("A " + itemName + " materialises in your hands.\n"))
+	}
+	commands["cn"] = commands["createnpc"]
+
 	commands["describeitem"] = func(args []string, c net.Conn, playerName string, world *metaManager) {
 		if len(args) < 2 {
 			c.Write([]byte("What do you want to describe?\n"))
@@ -199,14 +222,20 @@ func initCommandsAdmin() {
 		newDescription := strings.Join(args[1:], " ")
 
 		world.items.changeItem(itemId, func(i *item) {
-			it, ok := (*i).(genericItem)
-			if !ok {
-				c.Write([]byte("That is not an item."))
+			switch it := (*i).(type) {
+			case genericItem:
+				it.brief = newDescription
+				*i = it
+				c.Write([]byte("The " + (*i).Name() + " seems less ugly than it was.\n"))
+			case npc:
+				it.brief = newDescription
+				*i = it
+				c.Write([]byte("The " + (*i).Name() + " shimmers for a minute, looking strangely different after.\n"))
+			default:
+				c.Write([]byte("The " + (*i).Name() + " resists your attempt to describe it."))
+				fmt.Println("describe called with unknown item type '" + (*i).Id().String() + "'")
 				return
 			}
-			it.brief = newDescription
-			*i = it
-			c.Write([]byte("The " + (*i).Name() + " seems less ugly than it was.\n"))
 		})
 	}
 	commands["di"] = commands["describeitem"]
@@ -276,24 +305,22 @@ func initCommandsItems() {
 		if err != nil {
 			// getting by name, not id
 			items := world.itemLocations.locationItems(identifier(roomId), ilRoom)
+			found := false
 			for _, itemId := range items {
 				it, exists := world.items.getItem(itemId)
 				if !exists {
 					fmt.Println("get got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 				}
 				if it.Name() == args[0] {
-					world.itemLocations.moveItem(c, it.Id(), identifier(roomId), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
-						if success {
-							c.Write([]byte("You pick up " + it.Brief() + ".\n"))
-						} else {
-							c.Write([]byte("That is not here.\n"))
-						}
-					})
-					return
+					itemInt = int(it.Id())
+					found = true
+					break
 				}
 			}
-			c.Write([]byte("That is not here.\n"))
-			return
+			if !found {
+				c.Write([]byte("That is not here.0\n"))
+				return
+			}
 		}
 		fmt.Println("debug got " + strconv.Itoa(itemInt))
 		it, exists := world.items.getItem(itemIdentifier(itemInt))
@@ -302,13 +329,18 @@ func initCommandsItems() {
 			return
 		}
 
-		world.itemLocations.moveItem(c, it.Id(), identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
-			if success {
-				c.Write([]byte("You pick up " + it.Brief() + ".\n"))
-			} else {
-				c.Write([]byte("That is not here.\n"))
-			}
-		})
+		switch it.(type) {
+		case genericItem:
+			world.itemLocations.moveItem(c, it.Id(), identifier(currentRoom.id), ilRoom, realPlayer.id, ilPlayer, func(success bool) {
+				if success {
+					c.Write([]byte("You pick up " + it.Brief() + ".\n"))
+				} else {
+					c.Write([]byte("That is not here.1\n"))
+				}
+			})
+		case npc:
+			c.Write([]byte(it.Brief() + " <stares at you awkwardly.\n"))
+		}
 	}
 	commands["g"] = commands["get"]
 	commands["drop"] = func(args []string, c net.Conn, player string, world *metaManager) {
