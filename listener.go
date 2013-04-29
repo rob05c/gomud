@@ -42,7 +42,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, player string
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 
-	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt}
+	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt, connection: c}
 	world.players.createPlayer(newPlayer)
 	world.playerLocations.addPlayer(player, roomIdentifier(0))
 	go handlePlayer(world, c, player)

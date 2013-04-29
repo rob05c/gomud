@@ -13,6 +13,8 @@ import (
 //       after a playerConnectionManager exists for us to query
 
 type playerLocationManager struct {
+	rooms   *roomManager
+	players *playerManager
 	/// this should only be called when a player logs in
 	playerRoomAddChan chan struct {
 		player string
@@ -58,11 +60,37 @@ type playerLocationManager struct {
 }
 
 func (m playerLocationManager) movePlayer(c net.Conn, player string, direction Direction, postFunc func(bool)) {
+	initialRoomId, exists := m.playerRoom(player)
+	if !exists {
+		fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player)
+		return
+	}
 	m.playerMoveChan <- struct {
 		player    string
 		direction Direction
 		postFunc  func(bool)
-	}{player, direction, postFunc}
+	}{player, direction, func(success bool) {
+		defer postFunc(success)
+		if success {
+			newRoomId, exists := m.playerRoom(player)
+			if !exists {
+				fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player)
+				return
+			}
+			newRoom, exists := m.rooms.getRoom(newRoomId)
+			if !exists {
+				fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + newRoomId.String())
+				return
+			}
+			newRoom.Write(player+" enters from the "+direction.reverse().String()+".", &m, player)
+			initialRoom, exists := m.rooms.getRoom(initialRoomId)
+			if !exists {
+				fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + initialRoomId.String())
+				return
+			}
+			initialRoom.Write(player+" leaves to the "+direction.String()+".", &m, player)
+		}
+	}}
 
 }
 
@@ -98,8 +126,10 @@ func (m playerLocationManager) addPlayer(playerName string, roomId roomIdentifie
 	}{playerName, 0}
 }
 
-func newPlayerLocationManager(roomMan *roomManager) *playerLocationManager {
+func newPlayerLocationManager(roomMan *roomManager, playerMan *playerManager) *playerLocationManager {
 	playerLocationManager := &playerLocationManager{
+		rooms:   roomMan,
+		players: playerMan,
 		playerRoomAddChan: make(chan struct {
 			player string
 			roomId roomIdentifier

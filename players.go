@@ -1,5 +1,9 @@
 package main
 
+import (
+	"net"
+)
+
 //
 // player
 //
@@ -11,6 +15,11 @@ type player_state struct {
 	name        string
 	passthesalt []byte
 	pass        []byte
+	connection  net.Conn
+}
+
+func (p player_state) Write(message string) {
+	p.connection.Write([]byte(message + "\n"))
 }
 
 type playerManager struct {

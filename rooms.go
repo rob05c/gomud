@@ -9,6 +9,10 @@ import (
 
 type roomIdentifier identifier
 
+func (i roomIdentifier) String() string {
+	return identifier(i).String()
+}
+
 //
 // room
 //
@@ -190,6 +194,21 @@ func (r *room) NewRoom(manager *roomManager, d Direction, newName string, newDes
 	manager.changeRoom(r.id, func(r *room) {
 		r.exits[d] = newRoomId
 	})
+}
+
+func (r room) Write(message string, playerLocations *playerLocationManager, originator string) {
+	players := playerLocations.roomPlayers(r.id)
+	for _, playerId := range players {
+		player, exists := playerLocations.players.getPlayer(playerId)
+		if !exists {
+			fmt.Println("room.Message got nonexistent player from playerLocations '" + playerId + "'")
+			continue
+		}
+		if playerId == originator {
+			continue
+		}
+		player.Write(message)
+	}
 }
 
 type roomManager struct {

@@ -27,7 +27,7 @@ func initialize() metaManager {
 	playerManager := newPlayerManager()
 	roomManager := newRoomManager()
 	itemManager := newItemManager()
-	playerLocationManager := newPlayerLocationManager(roomManager)
+	playerLocationManager := newPlayerLocationManager(roomManager, playerManager)
 	itemLocationManager := newItemLocationManager()
 	roomManager.createRoom(room{
 		id:          roomIdentifier(0),
