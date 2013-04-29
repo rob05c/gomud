@@ -32,6 +32,14 @@ type playerManager struct {
 			bool
 		}
 	}
+	requestPlayerByIdChan chan struct {
+		key      identifier
+		response chan struct {
+			player_state
+			bool
+		}
+	}
+
 	playerChangeChan chan struct {
 		key    string
 		modify func(*player_state)
@@ -68,6 +76,22 @@ func (p playerManager) getPlayer(name string) (player player_state, exists bool)
 	return response.player_state, response.bool
 }
 
+func (p playerManager) getPlayerById(id identifier) (player player_state, exists bool) {
+	responseChan := make(chan struct {
+		player_state
+		bool
+	})
+	p.requestPlayerByIdChan <- struct {
+		key      identifier
+		response chan struct {
+			player_state
+			bool
+		}
+	}{id, responseChan}
+	response := <-responseChan
+	return response.player_state, response.bool
+}
+
 func (p playerManager) createPlayer(player player_state) {
 	p.playerCreateChan <- player
 }
@@ -75,6 +99,12 @@ func (p playerManager) createPlayer(player player_state) {
 func newPlayerManager() *playerManager {
 	playerManager := &playerManager{requestPlayerChan: make(chan struct {
 		key      string
+		response chan struct {
+			player_state
+			bool
+		}
+	}), requestPlayerByIdChan: make(chan struct {
+		key      identifier
 		response chan struct {
 			player_state
 			bool
@@ -89,10 +119,23 @@ func newPlayerManager() *playerManager {
 
 func managePlayers(manager *playerManager) {
 	var players = map[string]*player_state{}
+	var playersById = map[identifier]*player_state{}
 	for {
 		select {
 		case r := <-manager.requestPlayerChan:
 			player, exists := players[r.key]
+			var playerCopy player_state
+			if exists {
+				playerCopy = *player
+			} else {
+				playerCopy = player_state{}
+			}
+			r.response <- struct {
+				player_state
+				bool
+			}{playerCopy, exists}
+		case r := <-manager.requestPlayerByIdChan:
+			player, exists := playersById[r.key]
 			var playerCopy player_state
 			if exists {
 				playerCopy = *player
@@ -115,6 +158,7 @@ func managePlayers(manager *playerManager) {
 			}
 			n.id = identifier(len(players))
 			players[n.name] = &n
+			playersById[n.id] = &n
 		}
 	}
 }

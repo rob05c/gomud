@@ -16,6 +16,10 @@ const (
 )
 
 type itemLocationManager struct {
+	items           *itemManager
+	rooms           *roomManager
+	players         *playerManager
+	playerLocations *playerLocationManager
 	// should get called when an item is created
 	itemLocationAddChan chan struct {
 		itemId       itemIdentifier
@@ -120,6 +124,12 @@ func (m itemLocationManager) moveItem(c net.Conn,
 	location identifier,
 	locationType itemLocationType,
 	postFunc func(bool)) {
+
+	oldLocation, oldLocationType, exists := m.itemLocation(id)
+	if !exists {
+		fmt.Println("moveItem called with nonexistent item " + id.String())
+		return
+	}
 	m.itemMoveCheckedChan <- struct {
 		itemId          itemIdentifier
 		oldLocation     identifier
@@ -127,11 +137,55 @@ func (m itemLocationManager) moveItem(c net.Conn,
 		newLocation     identifier
 		newLocationType itemLocationType
 		postFunc        func(bool)
-	}{id, oldLocation, oldLocationType, location, locationType, postFunc}
+	}{id, oldLocation, oldLocationType, location, locationType, func(success bool) {
+		defer postFunc(success)
+		if !success {
+			return
+		}
+		newLocationId, newLocationType, exists := m.itemLocation(id)
+		if !exists {
+			fmt.Println("moveItem moved to nonexistent location " + newLocationId.String())
+			return
+		}
+		i, exists := m.items.getItem(id)
+		if !exists {
+			fmt.Println("moveItem moved nonexistent item " + id.String())
+			return
+		}
+		if oldLocationType == ilRoom && newLocationType == ilPlayer {
+			r, exists := m.rooms.getRoom(roomIdentifier(oldLocation))
+			if !exists {
+				fmt.Println("moveItem moved from nonexistent room " + oldLocation.String())
+				return
+			}
+			p, exists := m.players.getPlayerById(newLocationId)
+			if !exists {
+				fmt.Println("moveItem moved to nonexistent player " + newLocationId.String())
+				return
+			}
+			go r.Write(p.name+" picks up "+i.Brief()+".", m.playerLocations, p.name)
+		} else if oldLocationType == ilPlayer && newLocationType == ilRoom {
+			r, exists := m.rooms.getRoom(roomIdentifier(newLocationId))
+			if !exists {
+				fmt.Println("moveItem moved to nonexistent room " + oldLocation.String())
+				return
+			}
+			p, exists := m.players.getPlayerById(oldLocation)
+			if !exists {
+				fmt.Println("moveItem moved to nonexistent player " + newLocationId.String())
+				return
+			}
+			go r.Write(p.name+" drops "+i.Brief()+".", m.playerLocations, p.name)
+		}
+	}}
 }
 
-func newItemLocationManager() *itemLocationManager {
+func newItemLocationManager(itemMan *itemManager, roomMan *roomManager, playerMan *playerManager, playerLocationMan *playerLocationManager) *itemLocationManager {
 	itemLocationManager := &itemLocationManager{
+		items:           itemMan,
+		players:         playerMan,
+		rooms:           roomMan,
+		playerLocations: playerLocationMan,
 		itemLocationAddChan: make(chan struct {
 			itemId       itemIdentifier
 			location     identifier

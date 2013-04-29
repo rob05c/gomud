@@ -71,25 +71,26 @@ func (m playerLocationManager) movePlayer(c net.Conn, player string, direction D
 		postFunc  func(bool)
 	}{player, direction, func(success bool) {
 		defer postFunc(success)
-		if success {
-			newRoomId, exists := m.playerRoom(player)
-			if !exists {
-				fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player)
-				return
-			}
-			newRoom, exists := m.rooms.getRoom(newRoomId)
-			if !exists {
-				fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + newRoomId.String())
-				return
-			}
-			newRoom.Write(player+" enters from the "+direction.reverse().String()+".", &m, player)
-			initialRoom, exists := m.rooms.getRoom(initialRoomId)
-			if !exists {
-				fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + initialRoomId.String())
-				return
-			}
-			initialRoom.Write(player+" leaves to the "+direction.String()+".", &m, player)
+		if !success {
+			return
 		}
+		newRoomId, exists := m.playerRoom(player)
+		if !exists {
+			fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player)
+			return
+		}
+		newRoom, exists := m.rooms.getRoom(newRoomId)
+		if !exists {
+			fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + newRoomId.String())
+			return
+		}
+		go newRoom.Write(player+" enters from the "+direction.reverse().String()+".", &m, player)
+		initialRoom, exists := m.rooms.getRoom(initialRoomId)
+		if !exists {
+			fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + initialRoomId.String())
+			return
+		}
+		go initialRoom.Write(player+" leaves to the "+direction.String()+".", &m, player)
 	}}
 
 }
