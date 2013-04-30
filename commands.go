@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -10,6 +11,42 @@ import (
 const commandRejectMessage = "I don't understand."
 
 var commands = map[string]func([]string, net.Conn, string, *metaManager){}
+
+func say(message string, player string, world *metaManager) {
+	if len(message) == 0 {
+		return
+	}
+	rId, exists := world.playerLocations.playerRoom(player)
+	if !exists {
+		fmt.Println("say error: playerRoom got nonexistent room for " + player)
+		return
+	}
+	r, exists := world.rooms.getRoom(rId)
+	if !exists {
+		fmt.Println("say error: getRoom got nonexistent room " + rId.String())
+		return
+	}
+
+	p, exists := world.players.getPlayer(player)
+	if !exists {
+		fmt.Println("say error: getPlayer got nonexistent player " + player)
+		return
+	}
+
+	sentenceEnd, err := regexp.Compile(`[.!?]$`) // @todo make this locale aware.
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if !sentenceEnd.Match([]byte(message)) {
+		message += "."
+	}
+	message = strings.ToUpper(string(message[0])) + message[1:]
+	roomMessage := Pink + player + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
+	selfMessage := Pink + "You say, \"" + message + "\"" + Reset
+	go r.Write(roomMessage, world.playerLocations, player)
+	go p.Write(selfMessage)
+}
 
 func walk(d Direction, c net.Conn, playerName string, world *metaManager) {
 	world.playerLocations.movePlayer(c, playerName, d, func(success bool) {
@@ -518,7 +555,7 @@ func initCommandsItems() {
 
 }
 
-func initCommands() {
+func initCommandsBasic() {
 	commands["look"] = func(args []string, c net.Conn, player string, world *metaManager) {
 		look(c, player, world)
 	}
@@ -529,6 +566,14 @@ func initCommands() {
 	}
 	commands["ql"] = commands["quicklook"]
 
+	commands["say"] = func(args []string, c net.Conn, player string, world *metaManager) {
+		say(strings.Join(args, " "), player, world)
+	}
+	commands["'"] = commands["say"]
+}
+
+func initCommands() {
+	initCommandsBasic()
 	initCommandsDirections()
 	initCommandsItems()
 	initCommandsAdmin()
