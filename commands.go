@@ -12,6 +12,18 @@ const commandRejectMessage = "I don't understand."
 
 var commands = map[string]func([]string, net.Conn, string, *metaManager){}
 
+func ToSentence(s string) string {
+	sentenceEnd, err := regexp.Compile(`[.!?]$`) // @todo make this locale aware.
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	if !sentenceEnd.Match([]byte(s)) {
+		s += "."
+	}
+	return strings.ToUpper(string(s[0])) + s[1:]
+}
+
 func say(message string, player string, world *metaManager) {
 	if len(message) == 0 {
 		return
@@ -33,19 +45,40 @@ func say(message string, player string, world *metaManager) {
 		return
 	}
 
-	sentenceEnd, err := regexp.Compile(`[.!?]$`) // @todo make this locale aware.
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if !sentenceEnd.Match([]byte(message)) {
-		message += "."
-	}
-	message = strings.ToUpper(string(message[0])) + message[1:]
+	message = ToSentence(message)
 	roomMessage := Pink + player + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
 	selfMessage := Pink + "You say, \"" + message + "\"" + Reset
 	go r.Write(roomMessage, world.playerLocations, player)
 	go p.Write(selfMessage)
+}
+
+func tell(message string, tellerPlayer string, telleePlayer string, world *metaManager) {
+	if len(message) == 0 {
+		return
+	}
+
+	teller, exists := world.players.getPlayer(tellerPlayer)
+	if !exists {
+		fmt.Println("say error: getPlayer got nonexistent player " + tellerPlayer)
+		return
+	}
+
+	if tellerPlayer == telleePlayer {
+		go teller.Write("Your own voice reverberates in your head.")
+		return
+	}
+
+	tellee, exists := world.players.getPlayer(telleePlayer)
+	if !exists {
+		go teller.Write("Your own voice reverberates in your head.")
+		return
+	}
+
+	message = ToSentence(message)
+	telleeMessage := Cyan + tellerPlayer + " tells you, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
+	tellerMessage := Cyan + "You tell " + telleePlayer + ", \"" + message + "\"" + Reset
+	go tellee.Write(telleeMessage)
+	go teller.Write(tellerMessage)
 }
 
 func walk(d Direction, c net.Conn, playerName string, world *metaManager) {
@@ -570,6 +603,15 @@ func initCommandsBasic() {
 		say(strings.Join(args, " "), player, world)
 	}
 	commands["'"] = commands["say"]
+
+	commands["tell"] = func(args []string, c net.Conn, player string, world *metaManager) {
+		if len(args) < 2 {
+			return
+		}
+		tellee := args[0]
+		args = args[1:]
+		tell(strings.Join(args, " "), player, tellee, world)
+	}
 }
 
 func initCommands() {
