@@ -166,10 +166,14 @@ func handlePlayer(world metaManager, c net.Conn, player string) {
 			c.Write([]byte(commandRejectMessage + "1\n"))
 			continue
 		}
-		if command, commandExists := commands[trimmedMessageArgs[0]]; !commandExists {
+		commandString := strings.ToLower(trimmedMessageArgs[0])
+		if len(trimmedMessageArgs) > 1 {
+			trimmedMessageArgs = trimmedMessageArgs[1:]
+		}
+		if command, commandExists := commands[commandString]; !commandExists {
 			c.Write([]byte(commandRejectMessage + "2\n"))
 		} else {
-			command(trimmedMessageArgs[1:], c, player, &world)
+			command(trimmedMessageArgs, c, player, &world)
 		}
 	}
 }
