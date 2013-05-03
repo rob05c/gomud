@@ -42,7 +42,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, player string
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 
-	newPlayer := player_state{name: player, pass: hashedPass, passthesalt: salt, connection: c}
+	newPlayer := player_state{name: strings.ToLower(player), pass: hashedPass, passthesalt: salt, connection: c}
 	world.players.createPlayer(newPlayer)
 	world.playerLocations.addPlayer(player, roomIdentifier(0))
 	go handlePlayer(world, c, player)
@@ -73,32 +73,35 @@ func handleCreatingPlayer(world metaManager, c net.Conn, player string) {
 }
 
 func handleLoginPass(world metaManager, c net.Conn, playerName string) {
+	playerName = strings.ToLower(playerName)
 	c.Write([]byte("Please enter your password.\n"))
 	pass, err := getBytesSecure(c)
+	defer func() {
+		for i := range pass {
+			pass[i] = 0
+		}
+	}()
+
 	if err != nil {
 		return
 	}
 	player, exists := world.players.getPlayer(playerName)
 	if !exists {
-		for i := range pass {
-			pass[i] = 0
-		}
 		return // we just validated the player exists, so this shouldn't happen
 	}
 
 	saltedPass := make([]byte, len(player.passthesalt)+len(pass))
 	saltedPass = append(saltedPass, player.passthesalt...)
 	saltedPass = append(saltedPass, pass...)
+	defer func() {
+		for i := range saltedPass {
+			saltedPass[i] = 0
+		}
+	}()
+
 	h := ripemd160.New()
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
-
-	for i := range saltedPass {
-		saltedPass[i] = 0
-	}
-	for i := range pass {
-		pass[i] = 0
-	}
 
 	if !bytes.Equal(hashedPass, player.pass) {
 		c.Write([]byte("Invalid password.\n"))
@@ -122,7 +125,7 @@ func handleLogin(world metaManager, c net.Conn) {
 		if error != nil {
 			return
 		}
-
+		player = strings.ToLower(player)
 		const validNameRegex = "[a-zA-Z]+" // names can only contain letters
 		valid, err := regexp.MatchString(validNameRegex, player)
 		if err != nil || !valid {
@@ -145,7 +148,7 @@ func handleLogin(world metaManager, c net.Conn) {
 
 // this handles connections for a logged-in player
 func handlePlayer(world metaManager, c net.Conn, player string) {
-	c.Write([]byte("Welcome " + player + "!\n"))
+	c.Write([]byte("Welcome " + ToProper(player) + "!\n"))
 	look(c, player, &world)
 	for {
 		message, error := getString(c)

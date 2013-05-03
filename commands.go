@@ -12,6 +12,16 @@ const commandRejectMessage = "I don't understand."
 
 var commands = map[string]func([]string, net.Conn, string, *metaManager){}
 
+func ToProper(player string) string {
+	if len(player) == 0 {
+		return player
+	}
+	if len(player) == 1 {
+		return strings.ToUpper(player)
+	}
+	return strings.ToUpper(string(player[0])) + player[1:]
+}
+
 func ToSentence(s string) string {
 	sentenceEnd, err := regexp.Compile(`[.!?]$`) // @todo make this locale aware.
 	if err != nil {
@@ -46,7 +56,7 @@ func say(message string, player string, world *metaManager) {
 	}
 
 	message = ToSentence(message)
-	roomMessage := Pink + player + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
+	roomMessage := Pink + ToProper(player) + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
 	selfMessage := Pink + "You say, \"" + message + "\"" + Reset
 	go r.Write(roomMessage, world.playerLocations, player)
 	go p.Write(selfMessage)
@@ -56,6 +66,8 @@ func tell(message string, tellerPlayer string, telleePlayer string, world *metaM
 	if len(message) == 0 {
 		return
 	}
+	tellerPlayer = strings.ToLower(tellerPlayer)
+	telleePlayer = strings.ToLower(telleePlayer)
 
 	teller, exists := world.players.getPlayer(tellerPlayer)
 	if !exists {
@@ -75,8 +87,8 @@ func tell(message string, tellerPlayer string, telleePlayer string, world *metaM
 	}
 
 	message = ToSentence(message)
-	telleeMessage := Cyan + tellerPlayer + " tells you, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
-	tellerMessage := Cyan + "You tell " + telleePlayer + ", \"" + message + "\"" + Reset
+	telleeMessage := Cyan + ToProper(tellerPlayer) + " tells you, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
+	tellerMessage := Cyan + "You tell " + ToProper(telleePlayer) + ", \"" + message + "\"" + Reset
 	go tellee.Write(telleeMessage)
 	go teller.Write(tellerMessage)
 }

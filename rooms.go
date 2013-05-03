@@ -155,13 +155,13 @@ func (r room) printPlayers(world *metaManager, currentPlayer string) string {
 		return ""
 	}
 	if len(players) == 1 {
-		buffer.WriteString(players[0])
+		buffer.WriteString(ToProper(players[0]))
 		buffer.WriteString(" is here.\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
 	if len(players) == 2 {
-		buffer.WriteString(players[0])
+		buffer.WriteString(ToProper(players[0]))
 		buffer.WriteString(" and ")
 		buffer.WriteString(players[1])
 		buffer.WriteString(" are here.\n")
@@ -171,12 +171,12 @@ func (r room) printPlayers(world *metaManager, currentPlayer string) string {
 	lastPlayer := players[len(players)-1]
 	players = players[0 : len(players)-1]
 	for _, player := range players {
-		buffer.WriteString(player)
+		buffer.WriteString(ToProper(player))
 		buffer.WriteString(", ")
 	}
 
 	buffer.WriteString("and ")
-	buffer.WriteString(lastPlayer)
+	buffer.WriteString(ToProper(lastPlayer))
 	buffer.WriteString(" are here.\n")
 	buffer.WriteString(Reset)
 	return buffer.String()
