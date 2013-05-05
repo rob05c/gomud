@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"strconv"
 )
 
@@ -59,24 +58,29 @@ type playerLocationManager struct {
 	}
 }
 
-func (m playerLocationManager) movePlayer(c net.Conn, player string, direction Direction, postFunc func(bool)) {
-	initialRoomId, exists := m.playerRoom(player)
+func (m playerLocationManager) movePlayer(playerId identifier, direction Direction, postFunc func(bool)) {
+	player, exists := m.players.getPlayerById(playerId)
 	if !exists {
-		fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player)
+		fmt.Println("movePlayer called with invalid player id '" + playerId.String() + "'")
+		return
+	}
+	initialRoomId, exists := m.playerRoom(player.Name())
+	if !exists {
+		fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player.Name())
 		return
 	}
 	m.playerMoveChan <- struct {
 		player    string
 		direction Direction
 		postFunc  func(bool)
-	}{player, direction, func(success bool) {
+	}{player.Name(), direction, func(success bool) {
 		defer postFunc(success)
 		if !success {
 			return
 		}
-		newRoomId, exists := m.playerRoom(player)
+		newRoomId, exists := m.playerRoom(player.Name())
 		if !exists {
-			fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player)
+			fmt.Println("playerRoomManager error: movePlayer got nonexistent room for " + player.Name())
 			return
 		}
 		newRoom, exists := m.rooms.getRoom(newRoomId)
@@ -84,13 +88,13 @@ func (m playerLocationManager) movePlayer(c net.Conn, player string, direction D
 			fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + newRoomId.String())
 			return
 		}
-		go newRoom.Write(player+" enters from the "+direction.reverse().String()+".", &m, player)
+		go newRoom.Write(player.Name()+" enters from the "+direction.reverse().String()+".", &m, player.Name())
 		initialRoom, exists := m.rooms.getRoom(initialRoomId)
 		if !exists {
 			fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + initialRoomId.String())
 			return
 		}
-		go initialRoom.Write(player+" leaves to the "+direction.String()+".", &m, player)
+		go initialRoom.Write(player.Name()+" leaves to the "+direction.String()+".", &m, player.Name())
 	}}
 
 }

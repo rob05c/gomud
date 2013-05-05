@@ -14,7 +14,8 @@ import (
 	"strings"
 )
 
-func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, player string, newPass string) {
+func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName string, newPass string) {
+	playerName = strings.ToLower(playerName)
 	c.Write([]byte("Please verify your password.\n"))
 	passVerify, err := getString(c)
 	if err != nil {
@@ -22,7 +23,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, player string
 	}
 	if newPass != passVerify {
 		c.Write([]byte("The passwords you entered do not match.\n"))
-		go handleCreatingPlayerPass(world, c, player)
+		go handleCreatingPlayerPass(world, c, playerName)
 		return
 	}
 	fmt.Println("creating player")
@@ -42,10 +43,15 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, player string
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 
-	newPlayer := player_state{name: strings.ToLower(player), pass: hashedPass, passthesalt: salt, connection: c}
-	world.players.createPlayer(newPlayer)
-	world.playerLocations.addPlayer(player, roomIdentifier(0))
-	go handlePlayer(world, c, player)
+	world.players.createPlayer(player_state{name: playerName, pass: hashedPass, passthesalt: salt, connection: c})
+	world.playerLocations.addPlayer(playerName, roomIdentifier(0))
+	player, exists := world.players.getPlayer(playerName)
+	if !exists {
+		fmt.Println("handleCreatingPlayerPassVerify error: newly created player does not exist: " + playerName)
+		c.Close()
+		return
+	}
+	go handlePlayer(world, player.Id())
 	return
 }
 
@@ -112,7 +118,7 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 	// player was found - user is now logged in
 	const nameSuccessMessage = "You have been successfully logged in!"
 	c.Write([]byte(nameSuccessMessage + "\n"))
-	go handlePlayer(world, c, playerName)
+	go handlePlayer(world, player.Id())
 }
 
 // this handles new connections, which are not yet logged in
@@ -147,11 +153,17 @@ func handleLogin(world metaManager, c net.Conn) {
 }
 
 // this handles connections for a logged-in player
-func handlePlayer(world metaManager, c net.Conn, player string) {
-	c.Write([]byte("Welcome " + ToProper(player) + "!\n"))
-	look(c, player, &world)
+func handlePlayer(world metaManager, playerId identifier) {
+	player, exists := world.players.getPlayerById(playerId)
+	if !exists {
+		fmt.Println("handlePlayer error: player not found " + playerId.String())
+		return
+	}
+	player.Write("Welcome " + ToProper(player.Name()) + "!")
+
+	look(playerId, &world)
 	for {
-		message, error := getString(c)
+		message, error := getString(player.connection)
 		if error != nil {
 			return
 		}
@@ -166,7 +178,7 @@ func handlePlayer(world metaManager, c net.Conn, player string) {
 		}
 
 		if len(trimmedMessageArgs) == 0 {
-			c.Write([]byte(commandRejectMessage + "1\n"))
+			player.Write(commandRejectMessage + "1")
 			continue
 		}
 		commandString := strings.ToLower(trimmedMessageArgs[0])
@@ -174,9 +186,9 @@ func handlePlayer(world metaManager, c net.Conn, player string) {
 			trimmedMessageArgs = trimmedMessageArgs[1:]
 		}
 		if command, commandExists := commands[commandString]; !commandExists {
-			c.Write([]byte(commandRejectMessage + "2\n"))
+			player.Write(commandRejectMessage + "2")
 		} else {
-			command(trimmedMessageArgs, c, player, &world)
+			command(trimmedMessageArgs, playerId, &world)
 		}
 	}
 }

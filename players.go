@@ -22,6 +22,14 @@ func (p player_state) Write(message string) {
 	p.connection.Write([]byte(message + "\n"))
 }
 
+func (p player_state) Id() identifier {
+	return p.id
+}
+
+func (p player_state) Name() string {
+	return p.name
+}
+
 type playerManager struct {
 	// users of the playerManager SHOULD NOT access these directly. 
 	// rather, user the accessor member functions
