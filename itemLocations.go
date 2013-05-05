@@ -2,9 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
-
-//	"strconv"
 )
 
 type itemLocationType int32
@@ -101,23 +98,27 @@ func (m itemLocationManager) removeItem(id itemIdentifier) {
 	m.itemLocationRemoveChan <- id
 }
 
-func (m itemLocationManager) teleportItem(c net.Conn, id itemIdentifier, location identifier, locationType itemLocationType, postFunc func(bool)) {
+func (m itemLocationManager) teleportItem(playerId identifier, id itemIdentifier, location identifier, locationType itemLocationType, postFunc func(bool)) {
 	m.itemMoveChan <- struct {
 		itemId          itemIdentifier
 		newLocation     identifier
 		newLocationType itemLocationType
 		postFunc        func(bool)
 	}{id, location, locationType, func(success bool) {
-		if !success {
-			// @todo tell the user where. E.g. "it is not in your inventory," "it is not on the ground"
-			c.Write([]byte("The item to move is not here."))
+		player, exists := m.players.getPlayerById(playerId)
+		if !exists {
+			fmt.Println("teleportitem: nonexistent player " + playerId.String())
 			return
 		}
-		c.Write([]byte("Item successfully moved."))
+		if !success {
+			player.Write("The item to move is not here.") /// @todo tell the user where. E.g. "it is not in your inventory," "it is not on the ground"
+			return
+		}
+		player.Write("Item successfully moved.")
 	}}
 }
 
-func (m itemLocationManager) moveItem(c net.Conn,
+func (m itemLocationManager) moveItem(
 	id itemIdentifier,
 	oldLocation identifier,
 	oldLocationType itemLocationType,

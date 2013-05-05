@@ -442,7 +442,7 @@ func initCommandsItems() {
 
 		switch it.(type) {
 		case genericItem:
-			world.itemLocations.moveItem(player.connection, it.Id(), identifier(currentRoom.id), ilRoom, player.Id(), ilPlayer, func(success bool) {
+			world.itemLocations.moveItem(it.Id(), identifier(currentRoom.id), ilRoom, player.Id(), ilPlayer, func(success bool) {
 				if success {
 					player.Write("You pick up " + it.Brief() + ".")
 				} else {
@@ -487,7 +487,7 @@ func initCommandsItems() {
 					fmt.Println("drop got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 				}
 				if it.Name() == args[0] {
-					world.itemLocations.moveItem(player.connection, it.Id(), playerId, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+					world.itemLocations.moveItem(it.Id(), playerId, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 						if success {
 							player.Write("You drop " + it.Brief() + ".")
 						} else {
@@ -507,7 +507,7 @@ func initCommandsItems() {
 			return
 		}
 
-		world.itemLocations.moveItem(player.connection, it.Id(), playerId, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
+		world.itemLocations.moveItem(it.Id(), playerId, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
 			if success {
 				player.Write("You drop " + it.Brief() + ".")
 			} else {
