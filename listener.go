@@ -14,20 +14,29 @@ import (
 	"strings"
 )
 
-func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName string, newPass string) {
+func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName string, newPass []byte) {
+	defer func() {
+		for i := range newPass {
+			newPass[i] = 0
+		}
+	}()
 	playerName = strings.ToLower(playerName)
 	c.Write([]byte("Please verify your password.\n"))
-	passVerify, err := getString(c)
+	passVerify, err := getBytesSecure(c)
+	defer func() {
+		for i := range passVerify {
+			passVerify[i] = 0
+		}
+	}()
 	if err != nil {
 		return
 	}
-	if newPass != passVerify {
+	if bytes.Compare(newPass, passVerify) != 0 {
 		c.Write([]byte("The passwords you entered do not match.\n"))
 		go handleCreatingPlayerPass(world, c, playerName)
 		return
 	}
 	fmt.Println("creating player")
-
 	salt := make([]byte, 128)
 	n, err := rand.Read(salt)
 	if n != len(salt) || err != nil {
@@ -35,10 +44,10 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 		c.Close()
 		return
 	}
-	passBytes := []byte(newPass) // @todo remove this after fixing pass strings
-	saltedPass := make([]byte, len(salt)+len(passBytes))
+	saltedPass := make([]byte, len(salt)+len(newPass))
 	saltedPass = append(saltedPass, salt...)
-	saltedPass = append(saltedPass, passBytes...)
+	saltedPass = append(saltedPass, newPass...)
+
 	h := ripemd160.New()
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
@@ -51,13 +60,16 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 		c.Close()
 		return
 	}
+	world.players.changePlayer(player.Name(), func(p *player_state) {
+		p.connection = c
+	})
 	go handlePlayer(world, player.Id())
 	return
 }
 
 func handleCreatingPlayerPass(world metaManager, c net.Conn, player string) {
 	c.Write([]byte("Please enter a password for your character.\n"))
-	pass, err := getString(c)
+	pass, err := getBytesSecure(c)
 	if err != nil {
 		return
 	}
@@ -87,7 +99,6 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 			pass[i] = 0
 		}
 	}()
-
 	if err != nil {
 		return
 	}
@@ -95,7 +106,6 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 	if !exists {
 		return // we just validated the player exists, so this shouldn't happen
 	}
-
 	saltedPass := make([]byte, len(player.passthesalt)+len(pass))
 	saltedPass = append(saltedPass, player.passthesalt...)
 	saltedPass = append(saltedPass, pass...)
@@ -104,20 +114,17 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 			saltedPass[i] = 0
 		}
 	}()
-
 	h := ripemd160.New()
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
-
 	if !bytes.Equal(hashedPass, player.pass) {
 		c.Write([]byte("Invalid password.\n"))
 		c.Close()
 		return
 	}
-
-	// player was found - user is now logged in
-	const nameSuccessMessage = "You have been successfully logged in!"
-	c.Write([]byte(nameSuccessMessage + "\n"))
+	world.players.changePlayer(player.Name(), func(p *player_state) {
+		p.connection = c
+	})
 	go handlePlayer(world, player.Id())
 }
 
@@ -160,10 +167,11 @@ func handlePlayer(world metaManager, playerId identifier) {
 		return
 	}
 	player.Write("Welcome " + ToProper(player.Name()) + "!")
-
 	look(playerId, &world)
 	for {
+		fmt.Println("handlePlayer 1")
 		message, error := getString(player.connection)
+		fmt.Println("handlePlayer 2")
 		if error != nil {
 			return
 		}
@@ -205,7 +213,7 @@ func getBytesSecure(c net.Conn) ([]byte, error) {
 				fmt.Println("error: " + err.Error())
 				return nil, err
 			} else {
-				fmt.Println("connection closed.")
+				fmt.Println("connection closed0.")
 				return nil, errors.New("connection closed")
 			}
 		}
@@ -213,21 +221,8 @@ func getBytesSecure(c net.Conn) ([]byte, error) {
 		if len(readBuf) == 0 {
 			continue
 		}
-		if readBuf[0] == IAC {
-			var option byte
-			if len(readBuf) > 1 {
-				option = readBuf[0]
-			} else {
-				option = byte(0)
-			}
-
-			var optionInfo byte
-			if len(readBuf) > 2 {
-				optionInfo = readBuf[2]
-			} else {
-				optionInfo = byte(0)
-			}
-			handleTelnet(option, optionInfo, c)
+		readBuf = handleTelnet(readBuf, c)
+		if len(readBuf) == 0 {
 			continue
 		}
 		finalBuf = append(finalBuf, readBuf...)
@@ -261,7 +256,7 @@ func getString(c net.Conn) (string, error) {
 				fmt.Println("error: " + err.Error())
 				return "", err
 			} else {
-				fmt.Println("connection closed.")
+				fmt.Println("connection closed1.")
 				return "", errors.New("connection closed")
 			}
 		}
@@ -269,21 +264,8 @@ func getString(c net.Conn) (string, error) {
 		if len(readBuf) == 0 {
 			continue
 		}
-		if readBuf[0] == IAC {
-			var option byte
-			if len(readBuf) > 1 {
-				option = readBuf[0]
-			} else {
-				option = byte(0)
-			}
-
-			var optionInfo byte
-			if len(readBuf) > 2 {
-				optionInfo = readBuf[2]
-			} else {
-				optionInfo = byte(0)
-			}
-			handleTelnet(option, optionInfo, c)
+		readBuf = handleTelnet(readBuf, c)
+		if len(readBuf) == 0 {
 			continue
 		}
 		finalBuf = append(finalBuf, readBuf...)

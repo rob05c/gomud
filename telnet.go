@@ -4,8 +4,6 @@ import (
 	"net"
 )
 
-var telnetState telnet_state
-
 //
 // telnet
 //
@@ -34,19 +32,38 @@ type telnet_state struct {
 	LocalEcho bool
 }
 
-func handleTelnet(option byte, optionInfo byte, c net.Conn) {
+func handleTelnet(recieved []byte, c net.Conn) []byte {
+	if len(recieved) == 0 {
+		return recieved
+	}
+	if recieved[0] != IAC {
+		return recieved
+	}
+	recieved = recieved[1:]
+	var option byte
+	if len(recieved) > 1 {
+		option = recieved[0]
+		recieved = recieved[1:]
+	} else {
+		option = byte(0)
+	}
 	// for now, reject all requests. We're very contrary.
 	if option == DO || option == WILL {
-		commandBytes := []byte{0, 0, 0}
-		commandBytes[0] = IAC
 		if option == DO {
-			commandBytes[1] = WONT
+			c.Write([]byte{IAC, WONT, option})
 		} else {
-			commandBytes[1] = DONT
+			c.Write([]byte{IAC, DONT, option})
 		}
-		commandBytes[2] = optionInfo
-		c.Write(commandBytes)
 	}
+	return recieved
+	/*
+		var optionInfo byte
+		if len(readBuf) > 2 {
+			optionInfo = readBuf[2]
+		} else {
+			optionInfo = byte(0)
+		}
+	*/
 }
 
 func telnetCommandBytes(command telnet_command, option byte) []byte {
