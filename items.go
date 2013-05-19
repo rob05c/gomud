@@ -135,7 +135,6 @@ func manageItems(manager *itemManager) {
 			case npc:
 				t.id = itemIdentifier(len(items))
 				c.newItem = t
-
 			default:
 				fmt.Println("Could not create unknown item. Manager must be aware of item type.")
 				return

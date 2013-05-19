@@ -168,10 +168,9 @@ func handlePlayer(world metaManager, playerId identifier) {
 	}
 	player.Write("Welcome " + ToProper(player.Name()) + "!")
 	look(playerId, &world)
+
 	for {
-		fmt.Println("handlePlayer 1")
 		message, error := getString(player.connection)
-		fmt.Println("handlePlayer 2")
 		if error != nil {
 			return
 		}
