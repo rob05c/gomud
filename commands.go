@@ -669,12 +669,13 @@ func initCommandsAdmin() {
 		describeItem(args, playerId, world)
 	}
 	commands["di"] = commands["describeitem"]
+	commands["describenpc"] = commands["describeitem"]
+	commands["dn"] = commands["describenpc"]
 
 	commands["animate"] = func(args []string, playerId identifier, world *metaManager) {
 		animate(args, playerId, world)
 	}
 	commands["an"] = commands["animate"]
-
 }
 
 func initCommandsDirections() {
