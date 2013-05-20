@@ -19,7 +19,7 @@ type player_state struct {
 }
 
 func (p player_state) Write(message string) {
-	p.connection.Write([]byte(message + "\n"))
+	p.connection.Write([]byte(message + "\n" + p.Prompt() + "\n"))
 }
 
 func (p player_state) Id() identifier {
@@ -28,6 +28,11 @@ func (p player_state) Id() identifier {
 
 func (p player_state) Name() string {
 	return p.name
+}
+
+/// @todo return status info, such as health and mana, when such things are implemented
+func (p player_state) Prompt() string {
+	return "-"
 }
 
 type playerManager struct {
