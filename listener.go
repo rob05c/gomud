@@ -52,7 +52,13 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 
-	world.players.createPlayer(player_state{name: playerName, pass: hashedPass, passthesalt: salt, connection: c})
+	world.players.createPlayer(player_state{
+		name:        playerName,
+		pass:        hashedPass,
+		passthesalt: salt,
+		connection:  c,
+		level:       1,
+	})
 	world.playerLocations.addPlayer(playerName, roomIdentifier(0))
 	player, exists := world.players.getPlayer(playerName)
 	if !exists {
@@ -62,6 +68,8 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 	}
 	world.players.changePlayer(player.Name(), func(p *player_state) {
 		p.connection = c
+		p.health = p.MaxHealth()
+		p.mana = p.MaxMana()
 	})
 	go handlePlayer(world, player.Id())
 	return

@@ -2,6 +2,7 @@ package main
 
 import (
 	"net"
+	"strconv"
 )
 
 //
@@ -16,10 +17,13 @@ type player_state struct {
 	passthesalt []byte
 	pass        []byte
 	connection  net.Conn
+	level       uint
+	health      uint
+	mana        uint
 }
 
 func (p player_state) Write(message string) {
-	p.connection.Write([]byte(message + "\n" + p.Prompt() + "\n"))
+	p.connection.Write([]byte("\n" + message + "\n" + p.Prompt()))
 }
 
 func (p player_state) Id() identifier {
@@ -30,9 +34,19 @@ func (p player_state) Name() string {
 	return p.name
 }
 
+func (p player_state) MaxHealth() uint {
+	return 500 * p.level
+}
+
+func (p player_state) MaxMana() uint {
+	return 300 * p.level
+}
+
 /// @todo return status info, such as health and mana, when such things are implemented
 func (p player_state) Prompt() string {
-	return "-"
+	return Green + strconv.FormatUint(uint64(p.health), 10) + "h, " +
+		Blue + strconv.FormatUint(uint64(p.mana), 10) + "m" +
+		Reset + "-"
 }
 
 type playerManager struct {
