@@ -30,7 +30,7 @@ func (t actualThing) Long() string {
 func getThingGetter(id identifier, getGetter chan struct {
 	id       identifier
 	response chan chan thing
-}) chan thing {
+},) chan thing {
 	response := make(chan chan thing)
 	getGetter <- struct {
 		id       identifier
@@ -42,7 +42,7 @@ func getThingGetter(id identifier, getGetter chan struct {
 func getThing(id identifier, getGetter chan struct {
 	id       identifier
 	response chan chan thing
-}) thing {
+},) thing {
 	getter := getThingGetter(id, getGetter)
 	return <-getter
 }
@@ -50,7 +50,7 @@ func getThing(id identifier, getGetter chan struct {
 func getThingSetter(id identifier, getSetter chan struct {
 	id       identifier
 	response chan chan chan thing
-}) chan chan thing {
+},) chan chan thing {
 	response := make(chan chan chan thing)
 	getSetter <- struct {
 		id       identifier
