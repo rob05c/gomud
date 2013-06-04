@@ -367,6 +367,7 @@ func describeItem(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
+/// @todo fix this to lock the player's location before moving the item
 func get(args []string, playerId identifier, world *metaManager) {
 	player, exists := world.players.getPlayerById(playerId)
 	if !exists {
@@ -430,6 +431,7 @@ func get(args []string, playerId identifier, world *metaManager) {
 	}
 }
 
+/// @todo fix this to lock the player's location before moving the item
 func drop(args []string, playerId identifier, world *metaManager) {
 	player, exists := world.players.getPlayerById(playerId)
 	if !exists {
