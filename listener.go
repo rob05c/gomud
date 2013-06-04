@@ -147,7 +147,7 @@ func handleLogin(world metaManager, c net.Conn) {
 			return
 		}
 		player = strings.ToLower(player)
-		const validNameRegex = "[a-zA-Z]+" // names can only contain letters
+		const validNameRegex = "^[a-zA-Z]+$" // names can only contain letters
 		valid, err := regexp.MatchString(validNameRegex, player)
 		if err != nil || !valid {
 			const invalidNameMessage = "That is not a valid name. Please enter your name."
