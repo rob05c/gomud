@@ -50,7 +50,7 @@ func (r room) Print(world *metaManager, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
-	buffer.WriteString("\n")
+	buffer.WriteString("\r\n")
 	buffer.WriteString(Green)
 	if r.description != "" {
 		buffer.WriteString(r.description)
@@ -58,7 +58,7 @@ func (r room) Print(world *metaManager, playerName string) string {
 		const noDescriptionString = "The room seems to shimmer, as though it might fade from existence."
 		buffer.WriteString(noDescriptionString)
 	}
-	buffer.WriteString("\n")
+	buffer.WriteString("\r\n")
 	buffer.WriteString(r.printItems(world))
 	buffer.WriteString(r.printPlayers(world, playerName))
 	buffer.WriteString(r.printDirections())
@@ -71,7 +71,7 @@ func (r room) PrintBrief(world *metaManager, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
-	buffer.WriteString("\n")
+	buffer.WriteString("\r\n")
 	buffer.WriteString(r.printItems(world))
 	buffer.WriteString(r.printPlayers(world, playerName))
 	buffer.WriteString(r.printDirections())
@@ -94,7 +94,7 @@ func (r room) printItems(world *metaManager) string {
 			return ""
 		}
 		buffer.WriteString(it.Brief())
-		buffer.WriteString(" here.\n")
+		buffer.WriteString(" here.\r\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
@@ -111,7 +111,7 @@ func (r room) printItems(world *metaManager) string {
 		} else {
 			buffer.WriteString(itemSecond.Brief())
 		}
-		buffer.WriteString(" here.\n")
+		buffer.WriteString(" here.\r\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
@@ -134,7 +134,7 @@ func (r room) printItems(world *metaManager) string {
 	} else {
 		buffer.WriteString(lastItem.Brief())
 	}
-	buffer.WriteString(" here.\n")
+	buffer.WriteString(" here.\r\n")
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
@@ -156,7 +156,7 @@ func (r room) printPlayers(world *metaManager, currentPlayer string) string {
 	}
 	if len(players) == 1 {
 		buffer.WriteString(ToProper(players[0]))
-		buffer.WriteString(" is here.\n")
+		buffer.WriteString(" is here.\r\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
@@ -164,7 +164,7 @@ func (r room) printPlayers(world *metaManager, currentPlayer string) string {
 		buffer.WriteString(ToProper(players[0]))
 		buffer.WriteString(" and ")
 		buffer.WriteString(players[1])
-		buffer.WriteString(" are here.\n")
+		buffer.WriteString(" are here.\r\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
@@ -177,7 +177,7 @@ func (r room) printPlayers(world *metaManager, currentPlayer string) string {
 
 	buffer.WriteString("and ")
 	buffer.WriteString(ToProper(lastPlayer))
-	buffer.WriteString(" are here.\n")
+	buffer.WriteString(" are here.\r\n")
 	buffer.WriteString(Reset)
 	return buffer.String()
 }

@@ -21,7 +21,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 		}
 	}()
 	playerName = strings.ToLower(playerName)
-	c.Write([]byte("Please verify your password.\n"))
+	c.Write([]byte("Please verify your password.\r\n"))
 	passVerify, err := getBytesSecure(c)
 	defer func() {
 		for i := range passVerify {
@@ -32,7 +32,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 		return
 	}
 	if bytes.Compare(newPass, passVerify) != 0 {
-		c.Write([]byte("The passwords you entered do not match.\n"))
+		c.Write([]byte("The passwords you entered do not match.\r\n"))
 		go handleCreatingPlayerPass(world, c, playerName)
 		return
 	}
@@ -76,7 +76,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 }
 
 func handleCreatingPlayerPass(world metaManager, c net.Conn, player string) {
-	c.Write([]byte("Please enter a password for your character.\n"))
+	c.Write([]byte("Please enter a password for your character.\r\n"))
 	pass, err := getBytesSecure(c)
 	if err != nil {
 		return
@@ -86,7 +86,7 @@ func handleCreatingPlayerPass(world metaManager, c net.Conn, player string) {
 
 func handleCreatingPlayer(world metaManager, c net.Conn, player string) {
 	const playerCreateMessage = "No player by that name exists. Do you want to create a player?"
-	c.Write([]byte(playerCreateMessage + "\n"))
+	c.Write([]byte(playerCreateMessage + "\r\n"))
 	createReply, err := getString(c)
 	if err != nil {
 		return
@@ -100,7 +100,7 @@ func handleCreatingPlayer(world metaManager, c net.Conn, player string) {
 
 func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 	playerName = strings.ToLower(playerName)
-	c.Write([]byte("Please enter your password.\n"))
+	c.Write([]byte("Please enter your password.\r\n"))
 	pass, err := getBytesSecure(c)
 	defer func() {
 		for i := range pass {
@@ -126,7 +126,7 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 	if !bytes.Equal(hashedPass, player.pass) {
-		c.Write([]byte("Invalid password.\n"))
+		c.Write([]byte("Invalid password.\r\n"))
 		c.Close()
 		return
 	}
@@ -139,7 +139,7 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 // this handles new connections, which are not yet logged in
 func handleLogin(world metaManager, c net.Conn) {
 	negotiateTelnet(c)
-	const loginMessageString = "Please enter your name:\n"
+	const loginMessageString = "Please enter your name:\r\n"
 	c.Write([]byte(loginMessageString))
 	for {
 		player, error := getString(c)
@@ -151,7 +151,7 @@ func handleLogin(world metaManager, c net.Conn) {
 		valid, err := regexp.MatchString(validNameRegex, player)
 		if err != nil || !valid {
 			const invalidNameMessage = "That is not a valid name. Please enter your name."
-			c.Write([]byte(invalidNameMessage + "\n"))
+			c.Write([]byte(invalidNameMessage + "\r\n"))
 			continue
 		}
 

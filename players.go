@@ -24,7 +24,11 @@ type player_state struct {
 }
 
 func (p player_state) Write(message string) {
-	p.connection.Write([]byte("\n" + message + "\n" + p.Prompt()))
+	if len(message) == 0 {
+		fmt.Println("player.Write called with empty string '" + p.Name() + "'")
+		return
+	}
+	p.connection.Write([]byte("\r\n" + message + "\r\n" + p.Prompt()))
 }
 
 func (p player_state) Id() identifier {
