@@ -56,6 +56,34 @@ type itemLocationManager struct {
 		newLocationType itemLocationType
 		postFunc        func(bool)
 	}
+
+	lockLocationChan chan struct {
+		itemId       itemIdentifier
+		location     identifier
+		locationType itemLocationType
+		f            func()
+		response     chan bool
+	}
+}
+
+/// If the given item is in the given location, executes the given function.
+/// If the item is not in the location, returns false without executing the function.
+///
+/// This only returns success or failure to aquire the lock.
+/// If you need to know success of your own function, use a channel.
+func (m itemLocationManager) lockLocation(id itemIdentifier, location identifier, locationType itemLocationType, f func()) bool {
+	fmt.Println("debug locklocation recieved")
+	responseChan := make(chan bool)
+	m.lockLocationChan <- struct {
+		itemId       itemIdentifier
+		location     identifier
+		locationType itemLocationType
+		f            func()
+		response     chan bool
+	}{id, location, locationType, f, responseChan}
+	fmt.Println("debug locklocation sent")
+	defer fmt.Println("debug locklocation finished")
+	return <-responseChan
 }
 
 func (m itemLocationManager) itemLocation(id itemIdentifier) (identifier, itemLocationType, bool) {
@@ -219,7 +247,16 @@ func newItemLocationManager(itemMan *itemManager, roomMan *roomManager, playerMa
 			newLocation     identifier
 			newLocationType itemLocationType
 			postFunc        func(bool)
-		})}
+		}),
+		lockLocationChan: make(chan struct {
+			itemId       itemIdentifier
+			location     identifier
+			locationType itemLocationType
+			f            func()
+			response     chan bool
+		}),
+	}
+
 	go manageItemLocations(itemLocationManager)
 	return itemLocationManager
 }
@@ -301,6 +338,14 @@ func manageItemLocations(manager *itemLocationManager) {
 		case m := <-manager.itemMoveChan:
 			moveItem(m.itemId, m.newLocation, m.newLocationType)
 			go m.postFunc(true)
+		case m := <-manager.lockLocationChan:
+			fmt.Println("debug locklocationchan recieved")
+			if itemLocations[m.itemId] != make_location(m.location, m.locationType) {
+				m.response <- false
+				continue
+			}
+			m.response <- true
+			m.f()
 		}
 	}
 }

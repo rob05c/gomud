@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -38,11 +39,43 @@ func (p player_state) MaxHealth() uint {
 	return 500 * p.level
 }
 
+/// @todo ? remove the changePlayer call, and require users to call it themselves ?
+func (p player_state) Injure(damage uint, world *metaManager) {
+	world.players.changePlayer(p.Name(), func(player *player_state) {
+		if damage > player.health {
+			player.health = 0
+		} else {
+			player.health -= damage
+		}
+		if player.health == 0 {
+			go player.Kill(world) // This MUST be in a goroutine; the playerManager CANNOT be called in its own routine
+		}
+	})
+}
+
+/// This should rarely be called, e.g. with Instakills
+/// Ordinarily, Injure should be called, which will call this if necessary
+func (p player_state) Kill(world *metaManager) {
+	p.Write(Red + "You have died." + Reset)
+	roomId, exists := world.playerLocations.playerRoom(p.Name())
+	if !exists {
+		fmt.Println("kill called with invalid player '" + p.Name() + "'")
+		return
+	}
+	currentRoom, exists := world.rooms.getRoom(roomId)
+	if !exists {
+		fmt.Println("kill called with player with invalid room '" + p.Name() + "' " + roomId.String())
+		return
+	}
+	currentRoom.Write(p.Name()+" has died.", world.playerLocations, p.Name())
+}
+
 func (p player_state) MaxMana() uint {
 	return 300 * p.level
 }
 
-/// @todo return status info, such as health and mana, when such things are implemented
+// @todo change this to refresh the player from the playerManager
+//
 func (p player_state) Prompt() string {
 	return Green + strconv.FormatUint(uint64(p.health), 10) + "h, " +
 		Blue + strconv.FormatUint(uint64(p.mana), 10) + "m" +

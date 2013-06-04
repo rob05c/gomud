@@ -56,6 +56,28 @@ type playerLocationManager struct {
 		newRoom     roomIdentifier
 		postFunc    func(bool)
 	}
+	lockLocationChan chan struct {
+		player   string
+		location roomIdentifier
+		f        func()
+		response chan bool
+	}
+}
+
+/// If the given item is in the given location, executes the given function.
+/// If the item is not in the location, returns false without executing the function.
+///
+/// This only returns success or failure to aquire the lock.
+/// If you need to know success of your own function, use a channel.
+func (m playerLocationManager) lockLocation(player string, location roomIdentifier, f func()) bool {
+	responseChan := make(chan bool)
+	m.lockLocationChan <- struct {
+		player   string
+		location roomIdentifier
+		f        func()
+		response chan bool
+	}{player, location, f, responseChan}
+	return <-responseChan
 }
 
 func (m playerLocationManager) movePlayer(playerId identifier, direction Direction, postFunc func(bool)) {
@@ -88,13 +110,13 @@ func (m playerLocationManager) movePlayer(playerId identifier, direction Directi
 			fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + newRoomId.String())
 			return
 		}
-		go newRoom.Write(player.Name()+" enters from the "+direction.reverse().String()+".", &m, player.Name())
+		go newRoom.Write(ToProper(player.Name())+" enters from the "+direction.reverse().String()+".", &m, player.Name())
 		initialRoom, exists := m.rooms.getRoom(initialRoomId)
 		if !exists {
 			fmt.Println("playerRoomManager error: movePlayer got nonexistent room " + initialRoomId.String())
 			return
 		}
-		go initialRoom.Write(player.Name()+" leaves to the "+direction.String()+".", &m, player.Name())
+		go initialRoom.Write(ToProper(player.Name())+" leaves to the "+direction.String()+".", &m, player.Name())
 	}}
 
 }
@@ -171,7 +193,15 @@ func newPlayerLocationManager(roomMan *roomManager, playerMan *playerManager) *p
 			currentRoom roomIdentifier
 			newRoom     roomIdentifier
 			postFunc    func(bool)
-		})}
+		}),
+		lockLocationChan: make(chan struct {
+			player   string
+			location roomIdentifier
+			f        func()
+			response chan bool
+		}),
+	}
+
 	go managePlayerLocations(playerLocationManager, roomMan)
 	return playerLocationManager
 }
@@ -266,6 +296,13 @@ func managePlayerLocations(manager *playerLocationManager, roomMan *roomManager)
 			}
 			movePlayer(g.player, g.newRoom)
 			go g.postFunc(true)
+		case m := <-manager.lockLocationChan:
+			if playerRooms[m.player] != m.location {
+				m.response <- false
+				continue
+			}
+			m.response <- true
+			m.f()
 		}
 	}
 }
