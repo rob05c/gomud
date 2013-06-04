@@ -503,12 +503,16 @@ func items(args []string, playerId identifier, world *metaManager) {
 	}
 
 	items := world.itemLocations.locationItems(playerId, ilPlayer)
+	itemString := ""
 	for _, itemId := range items {
 		it, exists := world.items.getItem(itemId)
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 		}
-		player.Write(it.Id().String() + it.Name())
+		itemString += it.Id().String() + it.Name() + "\r\n"
+	}
+	if len(itemString) > 0 {
+		player.Write(itemString[:len(itemString)-3])
 	}
 }
 
