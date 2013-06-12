@@ -512,7 +512,7 @@ func items(args []string, playerId identifier, world *metaManager) {
 		itemString += it.Id().String() + it.Name() + "\r\n"
 	}
 	if len(itemString) > 0 {
-		player.Write(itemString[:len(itemString)-3])
+		player.Write(itemString[:len(itemString)-2])
 	}
 }
 
