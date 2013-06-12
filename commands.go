@@ -609,7 +609,61 @@ func inventory(args []string, playerId identifier, world *metaManager) {
 	}
 	s += "."
 	player.Write(s)
+}
 
+func help(playerId identifier, world *metaManager) {
+	player, exists := world.players.getPlayerById(playerId)
+	if !exists {
+		fmt.Println("help called with invalid player'" + playerId.String() + "'")
+		return
+	}
+	s := `movement
+------------------------------
+To move in a direction, simply type the cardinal direction you wish to move in, e.g. "north". Shortcuts also work, e.g. "n".
+
+
+command		brief	syntax
+------------------------------
+say			say message
+tell			tell person message
+look		l	look
+quicklook	ql	quicklook
+makeroom	mr	makeroom direction title
+connectroom	cr	connectroom direction roomId
+describeroom	dr	describeroom description
+roomid			roomid
+createitem	ci	creatitem name
+createnpc	cn	createnpc name
+describeitem	di	describeitem itemId description
+describenpc	dn	describenpc npcId description
+animate		an	animate npcId script
+get		g	get itemId/itemName
+drop			drop itemId/itemName
+items		ii	items
+itemshere	ih	itemshere
+inventory	i	inventory
+
+
+animating
+------------------------------
+NPCs (non-player-characters) can be animated via javascript.
+
+All gomud commands are newline-delimited, so you must remove all newlines from your script before passing it to animate.
+
+For efficiency, your script should return as soon as possible. You should call mud_reval() to specify when your script will be called again, immediately before returning.
+
+A variable named "self" is available during execution. This is the ID of the current NPC, and necessary for many hook functions.
+
+The current available "hook" functions available in Javascript are:
+--------------------------------------------------------------------------------
+mud_println(text)                      print text to the server's console
+mud_getPlayer(name)                    get a struct containing the player's name and ID
+mud_moveRandom(self)                   move in a random direction
+mud_reval(self, wait)                  execute this NPC's animation script again in *wait* milliseconds
+mud_roomPlayers(self)                  get an array of the names of players in the room
+mud_attackPlayer(self, player, damage) attack the given player for the given integral amount of damage
+`
+	player.Write(s)
 }
 
 func initCommandsAdmin() {
@@ -682,6 +736,10 @@ func initCommandsAdmin() {
 		animate(args, playerId, world)
 	}
 	commands["an"] = commands["animate"]
+	commands["help"] = func(args []string, playerId identifier, world *metaManager) {
+		help(playerId, world)
+	}
+	commands["?"] = commands["help"]
 }
 
 func initCommandsDirections() {
