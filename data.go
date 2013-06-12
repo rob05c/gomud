@@ -49,12 +49,24 @@ func getThing(id identifier, getGetter chan struct {
 
 func getThingSetter(id identifier, getSetter chan struct {
 	id       identifier
-	response chan chan chan thing
-},) chan chan thing {
-	response := make(chan chan chan thing)
+	response chan chan struct {
+		it  thing
+		set chan thing
+	}
+},) chan struct {
+	it  thing
+	set chan thing
+} {
+	response := make(chan chan struct {
+		it  thing
+		set chan thing
+	})
 	getSetter <- struct {
 		id       identifier
-		response chan chan chan thing
+		response chan chan struct {
+			it  thing
+			set chan thing
+		}
 	}{id, response}
 	return <-response
 }
@@ -68,7 +80,10 @@ func initThingManager() (
 	},
 	chan struct {
 		id       identifier
-		response chan chan chan thing
+		response chan chan struct {
+			it  thing
+		        set chan thing
+		}
 	},
 	chan thing,
 	chan identifier) {
@@ -79,21 +94,30 @@ func initThingManager() (
 	})
 	getSetter := make(chan struct {
 		id       identifier
-		response chan chan chan thing
+		response chan chan struct {
+			it  thing
+			set chan thing
+		}
 	})
 	add := make(chan thing)
 	del := make(chan identifier)
 	go func() {
 		things := make(map[identifier]struct {
 			getter chan thing
-			setter chan chan thing
+			setter chan struct {
+				it  thing
+				set chan thing
+			}
 			closer chan bool
 		})
 		for {
 			select {
 			case a := <-add:
 				getter := make(chan thing)
-				setter := make(chan chan thing)
+				setter := make(chan struct {
+					it  thing
+					set chan thing
+				})
 				closer := make(chan bool)
 				getter <- a
 				go func() {
@@ -101,7 +125,10 @@ func initThingManager() (
 					itc := make(chan thing)
 					for {
 						select {
-						case setter <- itc:
+						case setter <- struct {
+							it  thing
+							set chan thing
+						}{it: it, set: itc}:
 							it = <-itc
 						case getter <- it:
 						case <-closer:
@@ -113,7 +140,10 @@ func initThingManager() (
 				}()
 				things[a.Id()] = struct {
 					getter chan thing
-					setter chan chan thing
+					setter chan struct {
+						it  thing
+						set chan thing
+					}
 					closer chan bool
 				}{getter, setter, closer}
 			case d := <-del:
