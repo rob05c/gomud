@@ -13,11 +13,11 @@ type Thing interface {
 }
 
 type actualThing struct {
-	id    identifier
-	name  string
-	brief string
-	long  string
-	location identifier
+	id        identifier
+	name      string
+	brief     string
+	long      string
+	location  identifier
 	presences map[identifier]bool
 }
 
@@ -104,7 +104,7 @@ func initThingManager() (
 		id       identifier
 		response chan chan struct {
 			it  Thing
-		        set chan Thing
+			set chan Thing
 		}
 	},
 	chan Thing,
