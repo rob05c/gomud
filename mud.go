@@ -6,6 +6,7 @@ import (
 	"strconv"
 )
 
+const version = `0.0.0`
 const defaultPort = 9241
 
 type identifier int32
@@ -111,9 +112,11 @@ func debug() {
 	v8ctx.Eval(wrappedToEval)
 }
 
+
 func main() {
 	world := initialize()
-	world.script.Eval("mud_println('World says, hello players');")
-	world.script.Eval("window.setInterval(mud_println('Tick'), 100);")
+	world.script.Eval("mud_println('javascript engine functioning');")
+//	world.script.Eval("window.setInterval(mud_println('Tick'), 100);")
+	fmt.Println("version " + version)
 	listen(*world)
 }
