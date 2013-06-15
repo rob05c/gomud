@@ -617,53 +617,52 @@ func help(playerId identifier, world *metaManager) {
 		fmt.Println("help called with invalid player'" + playerId.String() + "'")
 		return
 	}
-	s := `movement
-------------------------------
-To move in a direction, simply type the cardinal direction you wish to move in, e.g. "north". Shortcuts also work, e.g. "n".
-
-
-command		brief	syntax
-------------------------------
-say			say message
-tell			tell person message
-look		l	look
-quicklook	ql	quicklook
-makeroom	mr	makeroom direction title
-connectroom	cr	connectroom direction roomId
-describeroom	dr	describeroom description
-roomid			roomid
-createitem	ci	creatitem name
-createnpc	cn	createnpc name
-describeitem	di	describeitem itemId description
-describenpc	dn	describenpc npcId description
-animate		an	animate npcId script
-get		g	get itemId/itemName
-drop			drop itemId/itemName
-items		ii	items
-itemshere	ih	itemshere
-inventory	i	inventory
-
-
-
-animating
-------------------------------
-NPCs (non-player-characters) can be animated via javascript.
-
-All gomud commands are newline-delimited, so you must remove all newlines from your script before passing it to animate.
-
-For efficiency, your script should return as soon as possible. You should call mud_reval() to specify when your script will be called again, immediately before returning.
-
-A variable named "self" is available during execution. This is the ID of the current NPC, and necessary for many hook functions.
-
-The current available "hook" functions available in Javascript are:
---------------------------------------------------------------------------------
-mud_println(text)                      print text to the server's console
-mud_getPlayer(name)                    get a struct containing the player's name and ID
-mud_moveRandom(self)                   move in a random direction
-mud_reval(self, wait)                  execute this NPC's animation script again in *wait* milliseconds
-mud_roomPlayers(self)                  get an array of the names of players in the room
-mud_attackPlayer(self, player, damage) attack the given player for the given integral amount of damage
-`
+	s := "movement\r\n" +
+		"------------------------------\r\n" +
+		"To move in a direction, simply type the cardinal direction you wish to move in, e.g. 'north'. Shortcuts also work, e.g. 'n'.\r\n" +
+		"\r\n" +
+		"\r\n" +
+		"command		brief	syntax\r\n" +
+		"------------------------------\r\n" +
+		"say			say message\r\n" +
+		"tell			tell person message\r\n" +
+		"look		l	look\r\n" +
+		"quicklook	ql	quicklook\r\n" +
+		"makeroom	mr	makeroom direction title\r\n" +
+		"connectroom	cr	connectroom direction roomId\r\n" +
+		"describeroom	dr	describeroom description\r\n" +
+		"roomid			roomid\r\n" +
+		"createitem	ci	creatitem name\r\n" +
+		"createnpc	cn	createnpc name\r\n" +
+		"describeitem	di	describeitem itemId description\r\n" +
+		"describenpc	dn	describenpc npcId description\r\n" +
+		"animate		an	animate npcId script\r\n" +
+		"get		g	get itemId/itemName\r\n" +
+		"drop			drop itemId/itemName\r\n" +
+		"items		ii	items\r\n" +
+		"itemshere	ih	itemshere\r\n" +
+		"inventory	i	inventory\r\n" +
+		"\r\n" +
+		"\r\n" +
+		"\r\n" +
+		"animating\r\n" +
+		"------------------------------\r\n" +
+		"NPCs (non-player-characters) can be animated via javascript.\r\n" +
+		"\r\n" +
+		"All gomud commands are newline-delimited, so you must remove all newlines from your script before passing it to animate.\r\n" +
+		"\r\n" +
+		"For efficiency, your script should return as soon as possible. You should call mud_reval() to specify when your script will be called again, immediately before returning.\r\n" +
+		"\r\n" +
+		"A variable named 'self' is available during execution. This is the ID of the current NPC, and necessary for many hook functions.\r\n" +
+		"\r\n" +
+		"The current available 'hook' functions available in Javascript are:\r\n" +
+		"--------------------------------------------------------------------------------\r\n" +
+		"mud_println(text)                      print text to the server's console\r\n" +
+		"mud_getPlayer(name)                    get a struct containing the player's name and ID\r\n" +
+		"mud_moveRandom(self)                   move in a random direction\r\n" +
+		"mud_reval(self, wait)                  execute this NPC's animation script again in *wait* milliseconds\r\n" +
+		"mud_roomPlayers(self)                  get an array of the names of players in the room\r\n" +
+		"mud_attackPlayer(self, player, damage) attack the given player for the given integral amount of damage\r\n"
 	player.Write(s)
 }
 
