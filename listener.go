@@ -174,6 +174,7 @@ func handlePlayer(world metaManager, playerId identifier) {
 		fmt.Println("handlePlayer error: player not found " + playerId.String())
 		return
 	}
+	player.Write("gomud version " + version)
 	player.Write("Welcome " + ToProper(player.Name()) + "!")
 	look(playerId, &world)
 
