@@ -314,7 +314,7 @@ func listen(world metaManager) {
 			fmt.Println(err)
 			continue
 		}
-		player.Write("gomud version " + version)
+		conn.Write([]byte("gomud version " + version))
 		conn.Write([]byte("Welcome to gomud. "))
 		go handleLogin(world, conn)
 	}
