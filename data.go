@@ -1,10 +1,15 @@
 package main
 
-type thing interface {
+type Thing interface {
 	Id() identifier
 	Name() string
 	Brief() string
 	Long() string
+	Location() identifier
+	SetLocation(l identifier)
+	Presences() map[identifier]bool
+	AddPresence(p identifier)
+	RemovePresence(p identifier)
 }
 
 type actualThing struct {
@@ -12,6 +17,8 @@ type actualThing struct {
 	name  string
 	brief string
 	long  string
+	location identifier
+	presences map[identifier]bool
 }
 
 func (t actualThing) Id() identifier {
@@ -26,23 +33,38 @@ func (t actualThing) Brief() string {
 func (t actualThing) Long() string {
 	return t.long
 }
+func (t actualThing) Location() identifier {
+	return t.location
+}
+func (t actualThing) SetLocation(l identifier) {
+	t.location = l
+}
+func (t actualThing) Presences() map[identifier]bool {
+	return t.presences
+}
+func (t actualThing) AddPresence(p identifier) {
+	t.presences[p] = true
+}
+func (t actualThing) RemovePresence(p identifier) {
+	delete(t.presences, p)
+}
 
 func getThingGetter(id identifier, getGetter chan struct {
 	id       identifier
-	response chan chan thing
-},) chan thing {
-	response := make(chan chan thing)
+	response chan chan Thing
+},) chan Thing {
+	response := make(chan chan Thing)
 	getGetter <- struct {
 		id       identifier
-		response chan chan thing
+		response chan chan Thing
 	}{id, response}
 	return <-response
 }
 
 func getThing(id identifier, getGetter chan struct {
 	id       identifier
-	response chan chan thing
-},) thing {
+	response chan chan Thing
+},) Thing {
 	getter := getThingGetter(id, getGetter)
 	return <-getter
 }
@@ -50,22 +72,22 @@ func getThing(id identifier, getGetter chan struct {
 func getThingSetter(id identifier, getSetter chan struct {
 	id       identifier
 	response chan chan struct {
-		it  thing
-		set chan thing
+		it  Thing
+		set chan Thing
 	}
 },) chan struct {
-	it  thing
-	set chan thing
+	it  Thing
+	set chan Thing
 } {
 	response := make(chan chan struct {
-		it  thing
-		set chan thing
+		it  Thing
+		set chan Thing
 	})
 	getSetter <- struct {
 		id       identifier
 		response chan chan struct {
-			it  thing
-			set chan thing
+			it  Thing
+			set chan Thing
 		}
 	}{id, response}
 	return <-response
@@ -76,58 +98,58 @@ func getThingSetter(id identifier, getSetter chan struct {
 func initThingManager() (
 	chan struct {
 		id       identifier
-		response chan chan thing
+		response chan chan Thing
 	},
 	chan struct {
 		id       identifier
 		response chan chan struct {
-			it  thing
-		        set chan thing
+			it  Thing
+		        set chan Thing
 		}
 	},
-	chan thing,
+	chan Thing,
 	chan identifier) {
 
 	getGetter := make(chan struct {
 		id       identifier
-		response chan chan thing
+		response chan chan Thing
 	})
 	getSetter := make(chan struct {
 		id       identifier
 		response chan chan struct {
-			it  thing
-			set chan thing
+			it  Thing
+			set chan Thing
 		}
 	})
-	add := make(chan thing)
+	add := make(chan Thing)
 	del := make(chan identifier)
 	go func() {
-		things := make(map[identifier]struct {
-			getter chan thing
+		Things := make(map[identifier]struct {
+			getter chan Thing
 			setter chan struct {
-				it  thing
-				set chan thing
+				it  Thing
+				set chan Thing
 			}
 			closer chan bool
 		})
 		for {
 			select {
 			case a := <-add:
-				getter := make(chan thing)
+				getter := make(chan Thing)
 				setter := make(chan struct {
-					it  thing
-					set chan thing
+					it  Thing
+					set chan Thing
 				})
 				closer := make(chan bool)
 				getter <- a
 				go func() {
 					it := <-getter
-					itc := make(chan thing)
+					itc := make(chan Thing)
 					for {
 						select {
 						case setter <- struct {
-							it  thing
-							set chan thing
+							it  Thing
+							set chan Thing
 						}{it: it, set: itc}:
 							it = <-itc
 						case getter <- it:
@@ -138,21 +160,21 @@ func initThingManager() (
 						}
 					}
 				}()
-				things[a.Id()] = struct {
-					getter chan thing
+				Things[a.Id()] = struct {
+					getter chan Thing
 					setter chan struct {
-						it  thing
-						set chan thing
+						it  Thing
+						set chan Thing
 					}
 					closer chan bool
 				}{getter, setter, closer}
 			case d := <-del:
-				things[d].closer <- true
-				delete(things, d)
+				Things[d].closer <- true
+				delete(Things, d)
 			case g := <-getGetter:
-				g.response <- things[g.id].getter
+				g.response <- Things[g.id].getter
 			case s := <-getSetter:
-				s.response <- things[s.id].setter
+				s.response <- Things[s.id].setter
 			}
 		}
 	}()
