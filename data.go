@@ -90,22 +90,34 @@ type GetAccessorMsg struct {
 	response chan ThingAccessor
 }
 
+type GetAccessorByNameMsg struct {
+	name     string
+	response chan ThingAccessor
+}
+
 type ThingAdderMsg struct {
 	thing    Thing
 	response chan identifier
 }
 
 type ThingManager struct {
-	getGetter   chan GetGetterMsg
-	getSetter   chan GetSetterMsg
-	getAccessor chan GetAccessorMsg
-	add         chan ThingAdderMsg
-	del         chan identifier
+	getGetter         chan GetGetterMsg
+	getSetter         chan GetSetterMsg
+	getAccessor       chan GetAccessorMsg
+	getAccessorByName chan GetAccessorByNameMsg
+	add               chan ThingAdderMsg
+	del               chan identifier
 }
 
 func (m ThingManager) GetThingAccessor(id identifier) ThingAccessor {
 	response := make(chan ThingAccessor)
 	m.getAccessor <- GetAccessorMsg{id, response}
+	return <-response
+}
+
+func (m ThingManager) GetThingAccessorByName(name string) ThingAccessor {
+	response := make(chan ThingAccessor)
+	m.getAccessorByName <- GetAccessorByNameMsg{name, response}
 	return <-response
 }
 
@@ -132,7 +144,7 @@ func (m ThingManager) Remove(id identifier) {
 }
 
 func NewThingManager() *ThingManager {
-	manager := ThingManager{make(chan GetGetterMsg), make(chan GetSetterMsg), make(chan GetAccessorMsg), make(chan ThingAdderMsg), make(chan identifier)}
+	manager := ThingManager{make(chan GetGetterMsg), make(chan GetSetterMsg), make(chan GetAccessorMsg), make(chan GetAccessorByNameMsg), make(chan ThingAdderMsg), make(chan identifier)}
 	nextId := identifier(0)
 	go func() {
 		type thingAccessors struct {
@@ -142,6 +154,7 @@ func NewThingManager() *ThingManager {
 		}
 
 		Things := make(map[identifier]thingAccessors)
+		ThingsByName := make(map[string]thingAccessors)
 		for {
 			select {
 			case addThing := <-manager.add:
@@ -184,6 +197,8 @@ func NewThingManager() *ThingManager {
 				delete(Things, d)
 			case g := <-manager.getAccessor:
 				g.response <- ThingAccessor{Things[g.id].getter, Things[g.id].setter}
+			case g := <-manager.getAccessorByName:
+				g.response <- ThingAccessor{ThingsByName[g.name].getter, ThingsByName[g.name].setter}
 			case g := <-manager.getGetter:
 				g.response <- Things[g.id].getter
 			case s := <-manager.getSetter:
