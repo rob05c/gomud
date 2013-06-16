@@ -49,22 +49,18 @@ func (t actualThing) RemovePresence(p identifier) {
 	delete(t.presences, p)
 }
 
-func getThingGetter(id identifier, getGetter chan struct {
+type GetGetterMsg struct {
 	id       identifier
 	response chan chan Thing
-},) chan Thing {
+}
+
+func getThingGetter(id identifier, getGetter chan GetGetterMsg) chan Thing {
 	response := make(chan chan Thing)
-	getGetter <- struct {
-		id       identifier
-		response chan chan Thing
-	}{id, response}
+	getGetter <- GetGetterMsg{id, response}
 	return <-response
 }
 
-func getThing(id identifier, getGetter chan struct {
-	id       identifier
-	response chan chan Thing
-},) Thing {
+func getThing(id identifier, getGetter chan GetGetterMsg) Thing {
 	getter := getThingGetter(id, getGetter)
 	return <-getter
 }
@@ -96,10 +92,7 @@ func getThingSetter(id identifier, getSetter chan struct {
 //func addThing
 
 func initThingManager() (
-	chan struct {
-		id       identifier
-		response chan chan Thing
-	},
+	chan GetGetterMsg,
 	chan struct {
 		id       identifier
 		response chan chan struct {
@@ -110,10 +103,7 @@ func initThingManager() (
 	chan Thing,
 	chan identifier) {
 
-	getGetter := make(chan struct {
-		id       identifier
-		response chan chan Thing
-	})
+	getGetter := make(chan GetGetterMsg)
 	getSetter := make(chan struct {
 		id       identifier
 		response chan chan struct {
