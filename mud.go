@@ -17,7 +17,10 @@ func (i identifier) String() string {
 
 const invalidIdentifier = identifier(-1)
 
+const endl = "\r\n"
+
 type metaManager struct {
+	newRooms        *ThingManager
 	players         *playerManager
 	rooms           *roomManager
 	items           *itemManager
@@ -33,6 +36,7 @@ func initialize() *metaManager {
 	itemManager := newItemManager()
 	playerLocationManager := newPlayerLocationManager(roomManager, playerManager)
 	itemLocationManager := newItemLocationManager(itemManager, roomManager, playerManager, playerLocationManager)
+	rooms2 := NewThingManager()
 	roomManager.createRoom(room{
 		id:          roomIdentifier(0),
 		name:        "The Beginning",
@@ -43,12 +47,12 @@ func initialize() *metaManager {
 	world := &metaManager{
 		players:         playerManager,
 		rooms:           roomManager,
+		newRooms:        rooms2,
 		items:           itemManager,
 		playerLocations: playerLocationManager,
 		itemLocations:   itemLocationManager,
 		script:          nil,
 	}
-	//	initV8(world)
 	world.script = initializeV8(world)
 	return world
 }

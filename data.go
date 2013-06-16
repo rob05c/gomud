@@ -3,13 +3,7 @@ package main
 type Thing interface {
 	Id() identifier
 	Name() string
-	Brief() string
-	Long() string
-	Location() identifier
-	SetLocation(l identifier)
-	Presences() map[identifier]bool
-	AddPresence(p identifier)
-	RemovePresence(p identifier)
+	SetId(id identifier)
 }
 
 type actualThing struct {
@@ -23,6 +17,9 @@ type actualThing struct {
 
 func (t actualThing) Id() identifier {
 	return t.id
+}
+func (t actualThing) SetId(newId identifier) {
+	t.id = newId
 }
 func (t actualThing) Name() string {
 	return t.name
@@ -83,11 +80,33 @@ type GetSetterMsg struct {
 	response chan ThingSetter
 }
 
+type ThingAccessor struct {
+	ThingGetter
+	ThingSetter
+}
+
+type GetAccessorMsg struct {
+	id       identifier
+	response chan ThingAccessor
+}
+
+type ThingAdderMsg struct {
+	thing    Thing
+	response chan identifier
+}
+
 type ThingManager struct {
-	getGetter chan GetGetterMsg
-	getSetter chan GetSetterMsg
-	add       chan Thing
-	del       chan identifier
+	getGetter   chan GetGetterMsg
+	getSetter   chan GetSetterMsg
+	getAccessor chan GetAccessorMsg
+	add         chan ThingAdderMsg
+	del         chan identifier
+}
+
+func (m ThingManager) GetThingAccessor(id identifier) ThingAccessor {
+	response := make(chan ThingAccessor)
+	m.getAccessor <- GetAccessorMsg{id, response}
+	return <-response
 }
 
 func (m ThingManager) GetThingGetter(id identifier) ThingGetter {
@@ -102,16 +121,19 @@ func (m ThingManager) GetThingSetter(id identifier) ThingSetter {
 	return <-response
 }
 
-func (m ThingManager) Add(t Thing) {
-	m.add <- t
+func (m ThingManager) Add(t Thing) identifier {
+	response := make(chan identifier)
+	m.add <- ThingAdderMsg{t, response}
+	return <-response
 }
 
 func (m ThingManager) Remove(id identifier) {
 	m.del <- id
 }
 
-func initThingManager() ThingManager {
-	manager := ThingManager{make(chan GetGetterMsg), make(chan GetSetterMsg), make(chan Thing), make(chan identifier)}
+func NewThingManager() *ThingManager {
+	manager := ThingManager{make(chan GetGetterMsg), make(chan GetSetterMsg), make(chan GetAccessorMsg), make(chan ThingAdderMsg), make(chan identifier)}
+	nextId := identifier(0)
 	go func() {
 		type thingAccessors struct {
 			getter chan Thing
@@ -122,32 +144,46 @@ func initThingManager() ThingManager {
 		Things := make(map[identifier]thingAccessors)
 		for {
 			select {
-			case a := <-manager.add:
+			case addThing := <-manager.add:
+				addThing.thing.SetId(nextId)
+				nextId++
 				getter := make(chan Thing)
 				setter := make(chan SetterMsg)
 				closer := make(chan bool)
-				getter <- a
 
-				go func() {
-					it := <-getter
-					itc := make(chan Thing)
+				thingFunc := func(thing Thing, setting func(thing Thing, thingChan chan Thing)) {
+					thingChan := make(chan Thing)
 					for {
 						select {
-						case setter <- SetterMsg{it, itc}:
-							it = <-itc
-						case getter <- it:
+						case setter <- SetterMsg{thing, thingChan}:
+							go setting(thing, thingChan)
+							return
+						case getter <- thing:
 						case <-closer:
 							close(getter)
 							close(setter)
 							return
 						}
 					}
-				}()
-
-				Things[a.Id()] = thingAccessors{getter, setter, closer}
+				}
+				var settingFunc func(thing Thing, thingChan chan Thing)
+				settingFunc = func(thing Thing, thingChan chan Thing) {
+					for {
+						select {
+						case thing = <-thingChan:
+							go thingFunc(thing, settingFunc)
+						case getter <- thing:
+						}
+					}
+				}
+				go thingFunc(addThing.thing, settingFunc)
+				Things[addThing.thing.Id()] = thingAccessors{getter, setter, closer}
+				addThing.response <- addThing.thing.Id()
 			case d := <-manager.del:
 				Things[d].closer <- true
 				delete(Things, d)
+			case g := <-manager.getAccessor:
+				g.response <- ThingAccessor{Things[g.id].getter, Things[g.id].setter}
 			case g := <-manager.getGetter:
 				g.response <- Things[g.id].getter
 			case s := <-manager.getSetter:
@@ -155,5 +191,5 @@ func initThingManager() ThingManager {
 			}
 		}
 	}()
-	return manager
+	return &manager
 }
