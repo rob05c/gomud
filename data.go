@@ -54,17 +54,6 @@ type GetGetterMsg struct {
 	response chan chan Thing
 }
 
-func getThingGetter(id identifier, getGetter chan GetGetterMsg) chan Thing {
-	response := make(chan chan Thing)
-	getGetter <- GetGetterMsg{id, response}
-	return <-response
-}
-
-func getThing(id identifier, getGetter chan GetGetterMsg) Thing {
-	getter := getThingGetter(id, getGetter)
-	return <-getter
-}
-
 type SetterMsg struct {
 	it  Thing
 	set chan Thing
@@ -75,10 +64,32 @@ type GetSetterMsg struct {
 	response chan chan SetterMsg
 }
 
+type ThingAccessors struct {
+	getter chan Thing
+	setter chan SetterMsg
+	closer chan bool
+}
+
+func getThingGetter(id identifier, getGetter chan GetGetterMsg) chan Thing {
+	response := make(chan chan Thing)
+	getGetter <- GetGetterMsg{id, response}
+	return <-response
+}
+
+func getThing(getter chan Thing) Thing {
+	return <-getter
+}
+
 func getThingSetter(id identifier, getSetter chan GetSetterMsg) chan SetterMsg {
 	response := make(chan chan SetterMsg)
 	getSetter <- GetSetterMsg{id, response}
 	return <-response
+}
+
+func setThing(setter chan SetterMsg, modify func(t *Thing)) {
+	setterMsg := <-setter
+	modify(&setterMsg.it)
+	setterMsg.set <- setterMsg.it
 }
 
 //func addThing
@@ -94,11 +105,7 @@ func initThingManager() (
 	add := make(chan Thing)
 	del := make(chan identifier)
 	go func() {
-		Things := make(map[identifier]struct {
-			getter chan Thing
-			setter chan SetterMsg
-			closer chan bool
-		})
+		Things := make(map[identifier]ThingAccessors)
 		for {
 			select {
 			case a := <-add:
@@ -106,6 +113,7 @@ func initThingManager() (
 				setter := make(chan SetterMsg)
 				closer := make(chan bool)
 				getter <- a
+
 				go func() {
 					it := <-getter
 					itc := make(chan Thing)
@@ -121,11 +129,8 @@ func initThingManager() (
 						}
 					}
 				}()
-				Things[a.Id()] = struct {
-					getter chan Thing
-					setter chan SetterMsg
-					closer chan bool
-				}{getter, setter, closer}
+
+				Things[a.Id()] = ThingAccessors{getter, setter, closer}
 			case d := <-del:
 				Things[d].closer <- true
 				delete(Things, d)
