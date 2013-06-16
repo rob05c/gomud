@@ -65,27 +65,19 @@ func getThing(id identifier, getGetter chan GetGetterMsg) Thing {
 	return <-getter
 }
 
-func getThingSetter(id identifier, getSetter chan struct {
-	id       identifier
-	response chan chan struct {
-		it  Thing
-		set chan Thing
-	}
-},) chan struct {
+type SetterMsg struct {
 	it  Thing
 	set chan Thing
-} {
-	response := make(chan chan struct {
-		it  Thing
-		set chan Thing
-	})
-	getSetter <- struct {
-		id       identifier
-		response chan chan struct {
-			it  Thing
-			set chan Thing
-		}
-	}{id, response}
+}
+
+type GetSetterMsg struct {
+	id       identifier
+	response chan chan SetterMsg
+}
+
+func getThingSetter(id identifier, getSetter chan GetSetterMsg) chan SetterMsg {
+	response := make(chan chan SetterMsg)
+	getSetter <- GetSetterMsg{id, response}
 	return <-response
 }
 
@@ -93,43 +85,25 @@ func getThingSetter(id identifier, getSetter chan struct {
 
 func initThingManager() (
 	chan GetGetterMsg,
-	chan struct {
-		id       identifier
-		response chan chan struct {
-			it  Thing
-			set chan Thing
-		}
-	},
+	chan GetSetterMsg,
 	chan Thing,
 	chan identifier) {
 
 	getGetter := make(chan GetGetterMsg)
-	getSetter := make(chan struct {
-		id       identifier
-		response chan chan struct {
-			it  Thing
-			set chan Thing
-		}
-	})
+	getSetter := make(chan GetSetterMsg)
 	add := make(chan Thing)
 	del := make(chan identifier)
 	go func() {
 		Things := make(map[identifier]struct {
 			getter chan Thing
-			setter chan struct {
-				it  Thing
-				set chan Thing
-			}
+			setter chan SetterMsg
 			closer chan bool
 		})
 		for {
 			select {
 			case a := <-add:
 				getter := make(chan Thing)
-				setter := make(chan struct {
-					it  Thing
-					set chan Thing
-				})
+				setter := make(chan SetterMsg)
 				closer := make(chan bool)
 				getter <- a
 				go func() {
@@ -137,10 +111,7 @@ func initThingManager() (
 					itc := make(chan Thing)
 					for {
 						select {
-						case setter <- struct {
-							it  Thing
-							set chan Thing
-						}{it: it, set: itc}:
+						case setter <- SetterMsg{it, itc}:
 							it = <-itc
 						case getter <- it:
 						case <-closer:
@@ -152,10 +123,7 @@ func initThingManager() (
 				}()
 				Things[a.Id()] = struct {
 					getter chan Thing
-					setter chan struct {
-						it  Thing
-						set chan Thing
-					}
+					setter chan SetterMsg
 					closer chan bool
 				}{getter, setter, closer}
 			case d := <-del:
