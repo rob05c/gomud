@@ -49,9 +49,11 @@ func (t actualThing) RemovePresence(p identifier) {
 	delete(t.presences, p)
 }
 
-type GetGetterMsg struct {
-	id       identifier
-	response chan chan Thing
+type ThingGetter chan Thing
+
+func (g ThingGetter) Get() (Thing, bool) {
+	thing, ok := <-g
+	return thing, ok
 }
 
 type SetterMsg struct {
@@ -59,56 +61,68 @@ type SetterMsg struct {
 	set chan Thing
 }
 
+type ThingSetter chan SetterMsg
+
+func (s ThingSetter) Set(modify func(t *Thing)) (ok bool) {
+	msg, ok := <-s
+	if !ok {
+		return false
+	}
+	modify(&msg.it)
+	msg.set <- msg.it
+	return true
+}
+
+type GetGetterMsg struct {
+	id       identifier
+	response chan ThingGetter
+}
+
 type GetSetterMsg struct {
 	id       identifier
-	response chan chan SetterMsg
+	response chan ThingSetter
 }
 
-type ThingAccessors struct {
-	getter chan Thing
-	setter chan SetterMsg
-	closer chan bool
+type ThingManager struct {
+	getGetter chan GetGetterMsg
+	getSetter chan GetSetterMsg
+	add       chan Thing
+	del       chan identifier
 }
 
-func getThingGetter(id identifier, getGetter chan GetGetterMsg) chan Thing {
-	response := make(chan chan Thing)
-	getGetter <- GetGetterMsg{id, response}
+func (m ThingManager) GetThingGetter(id identifier) ThingGetter {
+	response := make(chan ThingGetter)
+	m.getGetter <- GetGetterMsg{id, response}
 	return <-response
 }
 
-func getThing(getter chan Thing) Thing {
-	return <-getter
-}
-
-func getThingSetter(id identifier, getSetter chan GetSetterMsg) chan SetterMsg {
-	response := make(chan chan SetterMsg)
-	getSetter <- GetSetterMsg{id, response}
+func (m ThingManager) GetThingSetter(id identifier) ThingSetter {
+	response := make(chan ThingSetter)
+	m.getSetter <- GetSetterMsg{id, response}
 	return <-response
 }
 
-func setThing(setter chan SetterMsg, modify func(t *Thing)) {
-	setterMsg := <-setter
-	modify(&setterMsg.it)
-	setterMsg.set <- setterMsg.it
+func (m ThingManager) Add(t Thing) {
+	m.add <- t
 }
 
-//func addThing
+func (m ThingManager) Remove(id identifier) {
+	m.del <- id
+}
 
-func initThingManager() (
-	chan GetGetterMsg,
-	chan GetSetterMsg,
-	chan Thing,
-	chan identifier) {
-
-	getGetter := make(chan GetGetterMsg)
-	getSetter := make(chan GetSetterMsg)
-	add := make(chan Thing)
-	del := make(chan identifier)
+func initThingManager() ThingManager {
+	manager := ThingManager{make(chan GetGetterMsg), make(chan GetSetterMsg), make(chan Thing), make(chan identifier)}
 	go func() {
-		Things := make(map[identifier]ThingAccessors)
+		type thingAccessors struct {
+			getter chan Thing
+			setter chan SetterMsg
+			closer chan bool
+		}
+
+		Things := make(map[identifier]thingAccessors)
 		for {
 			select {
-			case a := <-add:
+			case a := <-manager.add:
 				getter := make(chan Thing)
 				setter := make(chan SetterMsg)
 				closer := make(chan bool)
@@ -130,16 +144,16 @@ func initThingManager() (
 					}
 				}()
 
-				Things[a.Id()] = ThingAccessors{getter, setter, closer}
-			case d := <-del:
+				Things[a.Id()] = thingAccessors{getter, setter, closer}
+			case d := <-manager.del:
 				Things[d].closer <- true
 				delete(Things, d)
-			case g := <-getGetter:
+			case g := <-manager.getGetter:
 				g.response <- Things[g.id].getter
-			case s := <-getSetter:
+			case s := <-manager.getSetter:
 				s.response <- Things[s.id].setter
 			}
 		}
 	}()
-	return getGetter, getSetter, add, del
+	return manager
 }

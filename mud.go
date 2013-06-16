@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-const version = `0.0.0`
+const version = `0.0.1`
 const defaultPort = 9241
 
 type identifier int32
