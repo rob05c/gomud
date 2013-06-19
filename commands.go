@@ -44,18 +44,18 @@ func say(message string, playerId identifier, world *metaManager) {
 	}
 	rId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
-		fmt.Println("say error: playerRoom got nonexistent room for " + player.Name())
+		fmt.Println("say error: playerRoom got nonexistent Room for " + player.Name())
 		return
 	}
 	r, exists := world.rooms.getRoom(rId)
 	if !exists {
-		fmt.Println("say error: getRoom got nonexistent room " + rId.String())
+		fmt.Println("say error: getRoom got nonexistent Room " + rId.String())
 		return
 	}
 	message = ToSentence(message)
-	roomMessage := Pink + ToProper(player.Name()) + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
+	RoomMessage := Pink + ToProper(player.Name()) + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
 	selfMessage := Pink + "You say, \"" + message + "\"" + Reset
-	go r.Write(roomMessage, world.playerLocations, player.Name())
+	go r.Write(RoomMessage, world.playerLocations, player.Name())
 	go player.Write(selfMessage)
 }
 
@@ -109,14 +109,14 @@ func look(playerId identifier, world *metaManager) {
 		fmt.Println("look called with invalid player id '" + playerId.String() + "'")
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
 		fmt.Println("look called with invalid  player'" + player.Name() + "'")
 		return
 	}
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("look called with player with invalid room '" + player.Name() + "' " + strconv.Itoa(int(roomId)))
+		fmt.Println("look called with player with invalid Room '" + player.Name() + "' " + strconv.Itoa(int(RoomId)))
 		return
 	}
 	player.Write(currentRoom.Print(world, player.Name()))
@@ -128,14 +128,14 @@ func quicklook(playerId identifier, world *metaManager) {
 		fmt.Println("quicklook called with invalid player " + playerId.String())
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
 		fmt.Println("quicklook called with invalid player  '" + player.Name() + "'")
 		return
 	}
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("quicklook called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("quicklook called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 	player.Write(currentRoom.PrintBrief(world, player.Name()))
@@ -144,17 +144,17 @@ func quicklook(playerId identifier, world *metaManager) {
 func makeRoom(direction Direction, name string, playerId identifier, world *metaManager) {
 	player, exists := world.players.getPlayerById(playerId)
 	if !exists {
-		fmt.Println("makeroom called with nonexistent player " + playerId.String())
+		fmt.Println("makeRoom called with nonexistent player " + playerId.String())
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
-		fmt.Println("makeroom called with invalid player '" + player.Name() + "'")
+		fmt.Println("makeRoom called with invalid player '" + player.Name() + "'")
 		return
 	}
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("makeroom called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("makeRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 	currentRoom.NewRoom(world.rooms, direction, name, "")
@@ -164,7 +164,7 @@ func makeRoom(direction Direction, name string, playerId identifier, world *meta
 func connectRoom(args []string, playerId identifier, world *metaManager) {
 	player, exists := world.players.getPlayerById(playerId)
 	if !exists {
-		fmt.Println("makeroom called with nonexistent player " + playerId.String())
+		fmt.Println("makeRoom called with nonexistent player " + playerId.String())
 		return
 	}
 	if len(args) < 2 {
@@ -177,29 +177,29 @@ func connectRoom(args []string, playerId identifier, world *metaManager) {
 		return
 	}
 	toConnectRoomId := roomIdentifier(toConnectRoomIdInt)
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
-		fmt.Println("connectroom called with invalid player '" + player.Name() + "'")
+		fmt.Println("connectRoom called with invalid player '" + player.Name() + "'")
 		return
 	}
 
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("connectroom called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 
 	newRoomDirection := stringToDirection(args[0])
 	toConnectRoom, connectionRoomExists := world.rooms.getRoom(toConnectRoomId)
 	if !connectionRoomExists {
-		player.Write("No room exists with the given id.")
+		player.Write("No Room exists with the given id.")
 		return
 	}
 
-	world.rooms.changeRoom(currentRoom.id, func(r *room) {
+	world.rooms.changeRoom(currentRoom.id, func(r *Room) {
 		r.exits[newRoomDirection] = toConnectRoom.id
 	})
-	world.rooms.changeRoom(toConnectRoom.id, func(r *room) {
+	world.rooms.changeRoom(toConnectRoom.id, func(r *Room) {
 		r.exits[newRoomDirection.reverse()] = currentRoom.id
 		go player.Write("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".")
 	})
@@ -208,44 +208,44 @@ func connectRoom(args []string, playerId identifier, world *metaManager) {
 func describeRoom(args []string, playerId identifier, world *metaManager) {
 	player, exists := world.players.getPlayerById(playerId)
 	if !exists {
-		fmt.Println("describeroom called with nonexistent player " + playerId.String())
+		fmt.Println("describeRoom called with nonexistent player " + playerId.String())
 		return
 	}
 	if len(args) < 1 {
 		player.Write(commandRejectMessage + "3") ///< @todo give better  error
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
-		fmt.Println("describeroom called with invalid player '" + player.Name() + "'")
+		fmt.Println("describeRoom called with invalid player '" + player.Name() + "'")
 		return
 	}
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("connectroom called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
-	world.rooms.changeRoom(currentRoom.id, func(r *room) {
+	world.rooms.changeRoom(currentRoom.id, func(r *Room) {
 		r.description = strings.Join(args[0:], " ")
 		go player.Write("Everything seems a bit more corporeal.")
 	})
 }
 
-func roomId(args []string, playerId identifier, world *metaManager) {
+func RoomId(args []string, playerId identifier, world *metaManager) {
 	player, exists := world.players.getPlayerById(playerId)
 	if !exists {
-		fmt.Println("roomid called with nonexistent player " + playerId.String())
+		fmt.Println("Roomid called with nonexistent player " + playerId.String())
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
-		fmt.Println("roomid called with invalid player '" + player.Name() + "'")
+		fmt.Println("Roomid called with invalid player '" + player.Name() + "'")
 		return
 	}
 
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("connectroom called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 	player.Write(currentRoom.id.String())
@@ -378,22 +378,22 @@ func get(args []string, playerId identifier, world *metaManager) {
 		player.Write("What do you want to get?")
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
 		fmt.Println("get called with invalid player '" + player.Name() + "'")
 		return
 	}
 
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("get called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("get called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 
 	itemInt, err := strconv.Atoi(args[0])
 	if err != nil {
 		// getting by name, not id
-		items := world.itemLocations.locationItems(identifier(roomId), ilRoom)
+		items := world.itemLocations.locationItems(identifier(RoomId), ilRoom)
 		found := false
 		for _, itemId := range items {
 			it, exists := world.items.getItem(itemId)
@@ -444,15 +444,15 @@ func drop(args []string, playerId identifier, world *metaManager) {
 		return
 	}
 
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
 		fmt.Println("drop called with invalid player '" + player.Name() + "'")
 		return
 	}
 
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("drop called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("drop called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 	itemInt, err := strconv.Atoi(args[0])
@@ -522,15 +522,15 @@ func itemsHere(args []string, playerId identifier, world *metaManager) {
 		fmt.Println("itemshere called with invalid player2 '" + playerId.String() + "'")
 		return
 	}
-	roomId, exists := world.playerLocations.playerRoom(player.Name())
+	RoomId, exists := world.playerLocations.playerRoom(player.Name())
 	if !exists {
 		fmt.Println("items called with invalid player '" + player.Name() + "'")
 		return
 	}
 
-	currentRoom, exists := world.rooms.getRoom(roomId)
+	currentRoom, exists := world.rooms.getRoom(RoomId)
 	if !exists {
-		fmt.Println("items called with player with invalid room '" + player.Name() + "' " + roomId.String())
+		fmt.Println("items called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
 
@@ -628,10 +628,10 @@ func help(playerId identifier, world *metaManager) {
 		"tell			tell person message\r\n" +
 		"look		l	look\r\n" +
 		"quicklook	ql	quicklook\r\n" +
-		"makeroom	mr	makeroom direction title\r\n" +
-		"connectroom	cr	connectroom direction roomId\r\n" +
-		"describeroom	dr	describeroom description\r\n" +
-		"roomid			roomid\r\n" +
+		"makeRoom	mr	makeRoom direction title\r\n" +
+		"connectRoom	cr	connectRoom direction RoomId\r\n" +
+		"describeRoom	dr	describeRoom description\r\n" +
+		"Roomid			Roomid\r\n" +
 		"createitem	ci	creatitem name\r\n" +
 		"createnpc	cn	createnpc name\r\n" +
 		"describeitem	di	describeitem itemId description\r\n" +
@@ -661,17 +661,17 @@ func help(playerId identifier, world *metaManager) {
 		"mud_getPlayer(name)                    get a struct containing the player's name and ID\r\n" +
 		"mud_moveRandom(self)                   move in a random direction\r\n" +
 		"mud_reval(self, wait)                  execute this NPC's animation script again in *wait* milliseconds\r\n" +
-		"mud_roomPlayers(self)                  get an array of the names of players in the room\r\n" +
+		"mud_RoomPlayers(self)                  get an array of the names of players in the Room\r\n" +
 		"mud_attackPlayer(self, player, damage) attack the given player for the given integral amount of damage\r\n"
 	player.Write(s)
 }
 
 func initCommandsAdmin() {
-	commands["makeroom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["makeRoom"] = func(args []string, playerId identifier, world *metaManager) {
 		if len(args) < 2 {
 			player, exists := world.players.getPlayerById(playerId)
 			if !exists {
-				fmt.Println("makeroom error: getPlayer got nonexistent player " + playerId.String())
+				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 				return
 			}
 			player.Write(commandRejectMessage + "3") ///< @todo give better error
@@ -681,7 +681,7 @@ func initCommandsAdmin() {
 		if newRoomDirection < north || newRoomDirection > southwest {
 			player, exists := world.players.getPlayerById(playerId)
 			if !exists {
-				fmt.Println("makeroom error: getPlayer got nonexistent player " + playerId.String())
+				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 				return
 			}
 			player.Write(commandRejectMessage + "4") ///< @todo give better error
@@ -691,7 +691,7 @@ func initCommandsAdmin() {
 		if len(newRoomName) == 0 {
 			player, exists := world.players.getPlayerById(playerId)
 			if !exists {
-				fmt.Println("makeroom error: getPlayer got nonexistent player " + playerId.String())
+				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 				return
 			}
 			player.Write(commandRejectMessage + "5") ///< @todo give better error
@@ -699,20 +699,20 @@ func initCommandsAdmin() {
 		}
 		makeRoom(newRoomDirection, newRoomName, playerId, world)
 	}
-	commands["mr"] = commands["makeroom"]
+	commands["mr"] = commands["makeRoom"]
 
-	commands["connectroom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["connectRoom"] = func(args []string, playerId identifier, world *metaManager) {
 		connectRoom(args, playerId, world)
 	}
-	commands["cr"] = commands["connectroom"]
+	commands["cr"] = commands["connectRoom"]
 
-	commands["describeroom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["describeRoom"] = func(args []string, playerId identifier, world *metaManager) {
 		describeRoom(args, playerId, world)
 	}
-	commands["dr"] = commands["describeroom"]
+	commands["dr"] = commands["describeRoom"]
 
-	commands["roomid"] = func(args []string, playerId identifier, world *metaManager) {
-		roomId(args, playerId, world)
+	commands["Roomid"] = func(args []string, playerId identifier, world *metaManager) {
+		RoomId(args, playerId, world)
 	}
 
 	commands["createitem"] = func(args []string, playerId identifier, world *metaManager) {

@@ -37,7 +37,7 @@ func initialize() *metaManager {
 	playerLocationManager := newPlayerLocationManager(roomManager, playerManager)
 	itemLocationManager := newItemLocationManager(itemManager, roomManager, playerManager, playerLocationManager)
 	rooms2 := NewThingManager()
-	roomManager.createRoom(room{
+	roomManager.createRoom(Room{
 		id:          roomIdentifier(0),
 		name:        "The Beginning",
 		description: "Everything has a beginning. This is only one of many beginnings you will soon find as I continue typing in order to create a wall of text to test this. It's a very long sentence that precedes this slightly shorter one. Blarglblargl.",

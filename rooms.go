@@ -14,16 +14,28 @@ func (i roomIdentifier) String() string {
 }
 
 //
-// room
+// Room
 //
-type room struct {
+type Room struct {
 	id          roomIdentifier
 	name        string
 	description string
 	exits       map[Direction]roomIdentifier
 }
 
-func (r room) printDirections() string {
+func (r Room) Id() identifier {
+	return identifier(r.id)
+}
+
+func (r Room) SetId(newId identifier) {
+	r.id = roomIdentifier(newId)
+}
+
+func (r Room) Name() string {
+	return r.name
+}
+
+func (r Room) printDirections() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Brown)
 	if len(r.exits) == 0 {
@@ -32,7 +44,7 @@ func (r room) printDirections() string {
 		buffer.WriteString("You see exits leading ")
 		writeComma := false
 		/// @todo print "and" before the last direction."
-		/// @todo print "a single exit" for single exit rooms
+		/// @todo print "a single exit" for single exit Rooms
 		for d := range r.exits {
 			if writeComma {
 				buffer.WriteString(", ")
@@ -46,7 +58,7 @@ func (r room) printDirections() string {
 	return buffer.String()
 }
 
-func (r room) Print(world *metaManager, playerName string) string {
+func (r Room) Print(world *metaManager, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -55,7 +67,7 @@ func (r room) Print(world *metaManager, playerName string) string {
 	if r.description != "" {
 		buffer.WriteString(r.description)
 	} else {
-		const noDescriptionString = "The room seems to shimmer, as though it might fade from existence."
+		const noDescriptionString = "The Room seems to shimmer, as though it might fade from existence."
 		buffer.WriteString(noDescriptionString)
 	}
 	buffer.WriteString("\r\n")
@@ -67,7 +79,7 @@ func (r room) Print(world *metaManager, playerName string) string {
 }
 
 // print sans description
-func (r room) PrintBrief(world *metaManager, playerName string) string {
+func (r Room) PrintBrief(world *metaManager, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -79,7 +91,7 @@ func (r room) PrintBrief(world *metaManager, playerName string) string {
 	return buffer.String()
 }
 
-func (r room) printItems(world *metaManager) string {
+func (r Room) printItems(world *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
@@ -139,7 +151,7 @@ func (r room) printItems(world *metaManager) string {
 	return buffer.String()
 }
 
-func (r room) printPlayers(world *metaManager, currentPlayer string) string {
+func (r Room) printPlayers(world *metaManager, currentPlayer string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Darkcyan)
 
@@ -183,25 +195,25 @@ func (r room) printPlayers(world *metaManager, currentPlayer string) string {
 }
 
 /// @todo ? make this a member of roomManager
-func (r *room) NewRoom(manager *roomManager, d Direction, newName string, newDesc string) {
-	newRoom := room{
+func (r *Room) NewRoom(manager *roomManager, d Direction, newName string, newDesc string) {
+	newRoom := Room{
 		name:        newName,
 		description: newDesc,
 		exits:       make(map[Direction]roomIdentifier),
 	}
 	newRoom.exits[d.reverse()] = r.id
 	newRoomId := manager.createRoom(newRoom)
-	manager.changeRoom(r.id, func(r *room) {
+	manager.changeRoom(r.id, func(r *Room) {
 		r.exits[d] = newRoomId
 	})
 }
 
-func (r room) Write(message string, playerLocations *playerLocationManager, originator string) {
+func (r Room) Write(message string, playerLocations *playerLocationManager, originator string) {
 	players := playerLocations.roomPlayers(r.id)
 	for _, playerId := range players {
 		player, exists := playerLocations.players.getPlayer(playerId)
 		if !exists {
-			fmt.Println("room.Message got nonexistent player from playerLocations '" + playerId + "'")
+			fmt.Println("Room.Message got nonexistent player from playerLocations '" + playerId + "'")
 			continue
 		}
 		if playerId == originator {
@@ -215,52 +227,52 @@ type roomManager struct {
 	requestRoomChan chan struct {
 		id       roomIdentifier
 		response chan struct {
-			room
+			Room
 			bool
 		}
 	}
-	roomChangeChan chan struct {
+	RoomChangeChan chan struct {
 		id     roomIdentifier
-		modify func(*room)
+		modify func(*Room)
 	}
-	roomCreateChan chan struct {
-		newroom  room
+	RoomCreateChan chan struct {
+		newRoom  Room
 		response chan roomIdentifier
 	}
 }
 
-func (m roomManager) getRoom(roomid roomIdentifier) (newroom room, exists bool) {
+func (m roomManager) getRoom(Roomid roomIdentifier) (newRoom Room, exists bool) {
 	responseChan := make(chan struct {
-		room
+		Room
 		bool
 	})
 	m.requestRoomChan <- struct {
 		id       roomIdentifier
 		response chan struct {
-			room
+			Room
 			bool
 		}
-	}{roomid, responseChan}
+	}{Roomid, responseChan}
 	response := <-responseChan
-	return response.room, response.bool
+	return response.Room, response.bool
 }
 
-func (m roomManager) createRoom(r room) roomIdentifier {
+func (m roomManager) createRoom(r Room) roomIdentifier {
 	responseChan := make(chan roomIdentifier)
-	m.roomCreateChan <- struct {
-		newroom  room
+	m.RoomCreateChan <- struct {
+		newRoom  Room
 		response chan roomIdentifier
 	}{r, responseChan}
 	newRoomId := <-responseChan
 	return newRoomId
 }
 
-/// callers should be aware this is asynchronous - the room is not necessarily changed immediately upon return
-/// anything in modify besides modifying the room MUST be called in a goroutine. Else, deadlock.
-func (m roomManager) changeRoom(id roomIdentifier, modify func(*room)) {
-	m.roomChangeChan <- struct {
+/// callers should be aware this is asynchronous - the Room is not necessarily changed immediately upon return
+/// anything in modify besides modifying the Room MUST be called in a goroutine. Else, deadlock.
+func (m roomManager) changeRoom(id roomIdentifier, modify func(*Room)) {
+	m.RoomChangeChan <- struct {
 		id     roomIdentifier
-		modify func(*room)
+		modify func(*Room)
 	}{id, modify}
 }
 
@@ -268,14 +280,14 @@ func newRoomManager() *roomManager {
 	roomManager := &roomManager{requestRoomChan: make(chan struct {
 		id       roomIdentifier
 		response chan struct {
-			room
+			Room
 			bool
 		}
-	}), roomChangeChan: make(chan struct {
+	}), RoomChangeChan: make(chan struct {
 		id     roomIdentifier
-		modify func(*room)
-	}), roomCreateChan: make(chan struct {
-		newroom  room
+		modify func(*Room)
+	}), RoomCreateChan: make(chan struct {
+		newRoom  Room
 		response chan roomIdentifier
 	})}
 	go manageRooms(roomManager)
@@ -283,31 +295,31 @@ func newRoomManager() *roomManager {
 }
 
 func manageRooms(manager *roomManager) {
-	var rooms = map[roomIdentifier]*room{}
+	var Rooms = map[roomIdentifier]*Room{}
 	for {
 		select {
 		case r := <-manager.requestRoomChan:
-			rroom, exists := rooms[r.id]
-			var roomCopy room
+			rRoom, exists := Rooms[r.id]
+			var RoomCopy Room
 			if exists {
-				roomCopy = *rroom
+				RoomCopy = *rRoom
 			} else {
-				roomCopy = room{id: -1}
+				RoomCopy = Room{id: -1}
 			}
 			r.response <- struct {
-				room
+				Room
 				bool
-			}{roomCopy, exists}
-		case m := <-manager.roomChangeChan:
-			croom, exists := rooms[m.id]
+			}{RoomCopy, exists}
+		case m := <-manager.RoomChangeChan:
+			cRoom, exists := Rooms[m.id]
 			if !exists {
 				continue
 			}
-			m.modify(croom)
-		case n := <-manager.roomCreateChan:
-			n.newroom.id = roomIdentifier(len(rooms))
-			rooms[n.newroom.id] = &n.newroom
-			n.response <- n.newroom.id
+			m.modify(cRoom)
+		case n := <-manager.RoomCreateChan:
+			n.newRoom.id = roomIdentifier(len(Rooms))
+			Rooms[n.newRoom.id] = &n.newRoom
+			n.response <- n.newRoom.id
 		}
 	}
 }
