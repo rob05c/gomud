@@ -1,5 +1,7 @@
 package main
 
+/// @todo change channels to be unidirectional
+
 type Thing interface {
 	Id() identifier
 	Name() string
@@ -53,9 +55,13 @@ func (g ThingGetter) Get() (Thing, bool) {
 	return thing, ok
 }
 
+
+var nextChainTime uint64
+
 type SetterMsg struct {
 	it  Thing
 	set chan Thing
+	chainTime chan uint64 
 }
 
 type ThingSetter chan SetterMsg
@@ -65,6 +71,7 @@ func (s ThingSetter) Set(modify func(t *Thing)) (ok bool) {
 	if !ok {
 		return false
 	}
+	msg.chainTime <- 0
 	modify(&msg.it)
 	msg.set <- msg.it
 	return true
@@ -80,9 +87,12 @@ type GetSetterMsg struct {
 	response chan ThingSetter
 }
 
+type ThingSetTime chan int64
+
 type ThingAccessor struct {
 	ThingGetter
 	ThingSetter
+	ThingSetTime
 }
 
 type GetAccessorMsg struct {
@@ -163,29 +173,35 @@ func NewThingManager() *ThingManager {
 				getter := make(chan Thing)
 				setter := make(chan SetterMsg)
 				closer := make(chan bool)
+				setTimeGetter := make(chan int64)
 
 				thingFunc := func(thing Thing, setting func(thing Thing, thingChan chan Thing)) {
 					thingChan := make(chan Thing)
+					timeSetter := make(chan int64)
 					for {
 						select {
-						case setter <- SetterMsg{thing, thingChan}:
-							go setting(thing, thingChan)
+						case setter <- SetterMsg{thing, thingChan, timeSetter}:
+							time := <- timeSetter
+							go setting(thing, thingChan, time)
 							return
 						case getter <- thing:
+						case setTimeGetter <- 0:
 						case <-closer:
 							close(getter)
 							close(setter)
 							return
+							
 						}
 					}
 				}
-				var settingFunc func(thing Thing, thingChan chan Thing)
-				settingFunc = func(thing Thing, thingChan chan Thing) {
+				var settingFunc func(thing Thing, thingChan chan Thing, time int64)
+				settingFunc = func(thing Thing, thingChan chan Thing, time int64) {
 					for {
 						select {
 						case thing = <-thingChan:
 							go thingFunc(thing, settingFunc)
 						case getter <- thing:
+						case setTimeGetter <- time:
 						}
 					}
 				}
