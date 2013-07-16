@@ -203,15 +203,16 @@ func (m PlayerManager) Move(player identifier, direction Direction, world *metaM
 			continue
 		}
 		sets = append(sets, newRoomSet)
-		p := playerSet.it.(*Player)
-		p.Room = newRoomId
-		playerSet.it = p
-		delete(roomSet.it.(*Room).Players, player)
-		newRoomSet.it.(*Room).Players[player] = true
-		playerSet.it.(*Player).Write("You move out to the " + direction.String() + ".")
-		roomSet.it.(*Room).Write(playerSet.it.(*Player).Name()+" moves out to the "+direction.String()+".", *world.players, p.Name())
-		newRoomSet.it.(*Room).Write(playerSet.it.(*Player).Name()+" enters from the "+direction.reverse().String()+".", *world.players, p.Name())
-		playerSet.it.(*Player).Write(newRoomSet.it.(*Room).PrintBrief(world, playerSet.it.(*Player).Name()))
+		player := playerSet.it.(*Player)
+		room := roomSet.it.(*Room)
+		newRoom := newRoomSet.it.(*Room)
+		player.Room = newRoomId
+		delete(room.Players, player.Id())
+		newRoom.Players[player.Id()] = true
+		player.Write("You move out to the " + direction.String() + ".")
+		room.Write(ToProper(player.Name())+" moves out to the "+direction.String()+".", *world.players, player.Name())
+		newRoom.Write(ToProper(player.Name())+" enters from the "+direction.reverse().String()+".", *world.players, player.Name())
+		player.Write(newRoom.PrintBrief(world, player.Name()))
 		ReleaseThings(sets)
 		break
 	}

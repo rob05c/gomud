@@ -467,23 +467,23 @@ func get(args []string, playerId identifier, world *metaManager) bool {
 		itemSet, ok, resetChain := itemAccessor.TryGet(chainTime)
 		if !ok {
 			tryPlayerWrite(playerId, world.players, "That is not here.", "get error: item chan closed")
-			roomSet.set <- roomSet.it
-			playerSet.set <- playerSet.it
+			ReleaseThings(sets)
 			return false
 		} else if resetChain {
-			roomSet.set <- roomSet.it
-			playerSet.set <- playerSet.it
+			ReleaseThings(sets)
 			continue
 		}
 		sets = append(sets, itemSet)
 
 		itemId := identifier(itemInt)
-		delete(roomSet.it.(*Room).Items, itemId)
-		playerSet.it.(*Player).Items[itemId] = piItem
-		it := itemSet.it.(*Item)
-		it.Location = playerSet.it.(*Player).Id()
-		itemSet.it = it
-		playerSet.it.(*Player).Write("You pick up " + it.Brief())
+		room := roomSet.it.(*Room)
+		item := itemSet.it.(*Item)
+		delete(room.Items, itemId)
+		player.Items[itemId] = piItem
+		item.Location = player.Id()
+		itemSet.it = item
+		player.Write("You pick up " + item.Brief())
+		room.Write(ToProper(player.Name())+" picks up "+item.Brief(), *world.players, player.Name())
 		ReleaseThings(sets)
 		break
 	}
@@ -562,13 +562,16 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 		sets = append(sets, itemSet)
 
 		itemId := identifier(itemInt)
-		itemType := playerSet.it.(*Player).Items[itemId]
-		delete(playerSet.it.(*Player).Items, itemId)
-		roomSet.it.(*Room).Items[itemId] = itemType
-		it := itemSet.it.(*Item)
-		it.Location = playerSet.it.(*Player).Id()
-		itemSet.it = it
-		playerSet.it.(*Player).Write("You drop " + it.Brief())
+		player := playerSet.it.(*Player)
+		room := roomSet.it.(*Room)
+		item := itemSet.it.(*Item)
+		itemType := player.Items[itemId]
+		delete(player.Items, itemId)
+		room.Items[itemId] = itemType
+		item.Location = player.Id()
+		itemSet.it = item
+		player.Write("You drop " + item.Brief())
+		room.Write(ToProper(player.Name())+" drops "+item.Brief(), *world.players, player.Name())
 		ReleaseThings(sets)
 		break
 	}
