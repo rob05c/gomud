@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-const version = `0.0.1`
+const version = `0.0.3`
 const defaultPort = 9241
 
 type identifier int32
@@ -20,43 +20,72 @@ const invalidIdentifier = identifier(-1)
 const endl = "\r\n"
 
 type metaManager struct {
-	newRooms        *ThingManager
-	players         *playerManager
-	rooms           *roomManager
-	items           *itemManager
-	playerLocations *playerLocationManager
-	itemLocations   *itemLocationManager
-	script          *v8.V8Context
+	rooms   *RoomManager
+	players *PlayerManager
+	items   *ItemManager
+	npcs    *NpcManager
+	script  *v8.V8Context
 }
 
-func initialize() *metaManager {
+type ChainTime uint64
+
+func (c ChainTime) String() string {
+	return strconv.Itoa(int(c))
+}
+
+var NextChainTime chan ChainTime // @todo make local, and passed to ThingManagers, which make it accessible
+const NotChaining = ChainTime(0)
+
+var NextId chan identifier // @todo make local, and passed to ThingManagers, which make it accessible
+
+func NewWorld() *metaManager {
+	go func() {
+		NextChainTime = make(chan ChainTime)
+		chainTime := ChainTime(0)
+		for {
+			NextChainTime <- chainTime
+			chainTime++
+		}
+	}()
+
+	go func() {
+		NextId = make(chan identifier)
+		id := identifier(0)
+		for {
+			NextId <- id
+			fmt.Println("debug: id provided " + id.String())
+			id++
+		}
+	}()
+
 	initCommands()
-	playerManager := newPlayerManager()
-	roomManager := newRoomManager()
-	itemManager := newItemManager()
-	playerLocationManager := newPlayerLocationManager(roomManager, playerManager)
-	itemLocationManager := newItemLocationManager(itemManager, roomManager, playerManager, playerLocationManager)
-	rooms2 := NewThingManager()
-	roomManager.createRoom(Room{
-		id:          roomIdentifier(0),
+
+	pm := PlayerManager(*NewThingManager())
+	rm := RoomManager(*NewThingManager())
+	nm := NpcManager(*NewThingManager())
+	im := ItemManager(*NewThingManager())
+	world := &metaManager{
+		players: &pm,
+		rooms:   &rm,
+		npcs:    &nm,
+		items:   &im,
+		script:  nil,
+	}
+
+	ThingManager(*world.rooms).Add(&Room{
+		id:          identifier(0),
 		name:        "The Beginning",
-		description: "Everything has a beginning. This is only one of many beginnings you will soon find as I continue typing in order to create a wall of text to test this. It's a very long sentence that precedes this slightly shorter one. Blarglblargl.",
-		exits:       make(map[Direction]roomIdentifier),
+		Description: "Everything has a beginning. This is only one of many beginnings you will soon find as I continue typing in order to create a wall of text to test this. It's a very long sentence that precedes this slightly shorter one. Blarglblargl.",
+		Exits:       make(map[Direction]identifier),
+		Players:     make(map[identifier]bool),
+		Items:       make(map[identifier]PlayerItemType),
 	})
 
-	world := &metaManager{
-		players:         playerManager,
-		rooms:           roomManager,
-		newRooms:        rooms2,
-		items:           itemManager,
-		playerLocations: playerLocationManager,
-		itemLocations:   itemLocationManager,
-		script:          nil,
-	}
-	world.script = initializeV8(world)
+	//	world.script = initializeV8(world) // @todo fix this
 	return world
 }
 
+/*
 func debug() {
 	v8ctx := v8.NewContext()
 	//	v8ctx.Eval(`this.console = { "log" : function(args) { _console_log.apply(null, arguments) }}`)
@@ -115,10 +144,13 @@ func debug() {
 	wrappedToEval := "(function(self) {" + toEval + "})(" + selfId.String() + ")"
 	v8ctx.Eval(wrappedToEval)
 }
+*/
 
 func main() {
-	world := initialize()
-	world.script.Eval("mud_println('javascript engine functioning');")
+	world := NewWorld()
+
+	//	world.script.Eval("mud_println('javascript engine functioning');")
+
 	//	world.script.Eval("window.setInterval(mud_println('Tick'), 100);")
 	fmt.Println("version " + version)
 	listen(*world)

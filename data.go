@@ -1,5 +1,9 @@
 package main
 
+import (
+	"fmt"
+)
+
 /// @todo change channels to be unidirectional
 
 type Thing interface {
@@ -9,12 +13,8 @@ type Thing interface {
 }
 
 type actualThing struct {
-	id        identifier
-	name      string
-	brief     string
-	long      string
-	location  identifier
-	presences map[identifier]bool
+	id   identifier
+	name string
 }
 
 func (t actualThing) Id() identifier {
@@ -26,27 +26,6 @@ func (t actualThing) SetId(newId identifier) {
 func (t actualThing) Name() string {
 	return t.name
 }
-func (t actualThing) Brief() string {
-	return t.brief
-}
-func (t actualThing) Long() string {
-	return t.long
-}
-func (t actualThing) Location() identifier {
-	return t.location
-}
-func (t actualThing) SetLocation(l identifier) {
-	t.location = l
-}
-func (t actualThing) Presences() map[identifier]bool {
-	return t.presences
-}
-func (t actualThing) AddPresence(p identifier) {
-	t.presences[p] = true
-}
-func (t actualThing) RemovePresence(p identifier) {
-	delete(t.presences, p)
-}
 
 type ThingGetter chan Thing
 
@@ -55,13 +34,10 @@ func (g ThingGetter) Get() (Thing, bool) {
 	return thing, ok
 }
 
-
-var nextChainTime uint64
-
 type SetterMsg struct {
-	it  Thing
-	set chan Thing
-	chainTime chan uint64 
+	it        Thing
+	set       chan Thing
+	chainTime chan ChainTime
 }
 
 type ThingSetter chan SetterMsg
@@ -71,7 +47,7 @@ func (s ThingSetter) Set(modify func(t *Thing)) (ok bool) {
 	if !ok {
 		return false
 	}
-	msg.chainTime <- 0
+	msg.chainTime <- NotChaining
 	modify(&msg.it)
 	msg.set <- msg.it
 	return true
@@ -87,7 +63,7 @@ type GetSetterMsg struct {
 	response chan ThingSetter
 }
 
-type ThingSetTime chan int64
+type ThingSetTime chan ChainTime
 
 type ThingAccessor struct {
 	ThingGetter
@@ -153,35 +129,87 @@ func (m ThingManager) Remove(id identifier) {
 	m.del <- id
 }
 
+func (a ThingAccessor) TryGet(chainTime ChainTime) (setter SetterMsg, ok bool, reset bool) {
+	if a.ThingSetter == nil || a.ThingGetter == nil {
+		fmt.Println("accessor setter nil")
+		return SetterMsg{}, false, false
+	}
+	select {
+	case setter, ok := <-a.ThingSetter:
+		setter.chainTime <- chainTime
+		fmt.Println("returning setter response")
+		return setter, ok, false
+	case time, ok := <-a.ThingSetTime:
+		if !ok {
+			fmt.Println("TryGet error: ThingSetTime nil.")
+			return SetterMsg{}, true, false
+		}
+		if time < chainTime {
+			//			fmt.Println("Tryget chaintime preempted " + chainTime.String() + " by " + time.String())
+			return SetterMsg{}, true, true
+		}
+		setter, ok := <-a.ThingSetter
+		setter.chainTime <- chainTime
+		fmt.Println("Tryget returning set success")
+		return setter, ok, false
+	}
+	fmt.Println("Tryget got where it shouldn't")
+	return SetterMsg{}, false, false // this should never get hit
+}
+
+func (m ThingManager) GetById(id identifier) (Thing, bool) {
+	accessor := ThingManager(m).GetThingAccessor(id)
+	if accessor.ThingGetter == nil {
+		fmt.Println("ThingManager.GetById error: ThingGetter nil " + id.String())
+		return nil, false
+	}
+	thing, ok := <-accessor.ThingGetter
+	return thing, ok
+}
+
+func ReleaseThings(things []SetterMsg) {
+	for _, a := range things {
+		a.set <- a.it
+	}
+}
+
 func NewThingManager() *ThingManager {
-	manager := ThingManager{make(chan GetGetterMsg), make(chan GetSetterMsg), make(chan GetAccessorMsg), make(chan GetAccessorByNameMsg), make(chan ThingAdderMsg), make(chan identifier)}
-	nextId := identifier(0)
+	manager := ThingManager{
+		getGetter:         make(chan GetGetterMsg),
+		getSetter:         make(chan GetSetterMsg),
+		getAccessor:       make(chan GetAccessorMsg),
+		getAccessorByName: make(chan GetAccessorByNameMsg),
+		add:               make(chan ThingAdderMsg),
+		del:               make(chan identifier),
+	}
 	go func() {
 		type thingAccessors struct {
-			getter chan Thing
-			setter chan SetterMsg
-			closer chan bool
+			getter        chan Thing
+			setter        chan SetterMsg
+			closer        chan bool
+			setTimeGetter chan ChainTime
 		}
 
 		Things := make(map[identifier]thingAccessors)
 		ThingsByName := make(map[string]thingAccessors)
+		ThingNameMap := make(map[identifier]string)
 		for {
 			select {
 			case addThing := <-manager.add:
-				addThing.thing.SetId(nextId)
-				nextId++
+				addThing.thing.SetId(<-NextId)
 				getter := make(chan Thing)
 				setter := make(chan SetterMsg)
 				closer := make(chan bool)
-				setTimeGetter := make(chan int64)
-
-				thingFunc := func(thing Thing, setting func(thing Thing, thingChan chan Thing)) {
+				setTimeGetter := make(chan ChainTime)
+				thingFunc := func(thing Thing, setting func(thing Thing, thingChan chan Thing, time ChainTime)) {
 					thingChan := make(chan Thing)
-					timeSetter := make(chan int64)
+					timeSetter := make(chan ChainTime)
 					for {
 						select {
 						case setter <- SetterMsg{thing, thingChan, timeSetter}:
-							time := <- timeSetter
+							fmt.Println("locking " + thing.Id().String())
+							time := <-timeSetter
+							fmt.Println("locked " + thing.Id().String())
 							go setting(thing, thingChan, time)
 							return
 						case getter <- thing:
@@ -190,31 +218,37 @@ func NewThingManager() *ThingManager {
 							close(getter)
 							close(setter)
 							return
-							
+
 						}
 					}
 				}
-				var settingFunc func(thing Thing, thingChan chan Thing, time int64)
-				settingFunc = func(thing Thing, thingChan chan Thing, time int64) {
+				var settingFunc func(thing Thing, thingChan chan Thing, time ChainTime)
+				settingFunc = func(thing Thing, thingChan chan Thing, time ChainTime) {
 					for {
 						select {
 						case thing = <-thingChan:
 							go thingFunc(thing, settingFunc)
+							fmt.Println("unlocked " + thing.Id().String())
+							return
 						case getter <- thing:
 						case setTimeGetter <- time:
 						}
 					}
 				}
 				go thingFunc(addThing.thing, settingFunc)
-				Things[addThing.thing.Id()] = thingAccessors{getter, setter, closer}
+				Things[addThing.thing.Id()] = thingAccessors{getter, setter, closer, setTimeGetter}
+				ThingsByName[addThing.thing.Name()] = thingAccessors{getter, setter, closer, setTimeGetter}
+				ThingNameMap[addThing.thing.Id()] = addThing.thing.Name()
 				addThing.response <- addThing.thing.Id()
 			case d := <-manager.del:
 				Things[d].closer <- true
+				delete(ThingsByName, ThingNameMap[d])
 				delete(Things, d)
+				delete(ThingNameMap, d)
 			case g := <-manager.getAccessor:
-				g.response <- ThingAccessor{Things[g.id].getter, Things[g.id].setter}
+				g.response <- ThingAccessor{Things[g.id].getter, Things[g.id].setter, Things[g.id].setTimeGetter}
 			case g := <-manager.getAccessorByName:
-				g.response <- ThingAccessor{ThingsByName[g.name].getter, ThingsByName[g.name].setter}
+				g.response <- ThingAccessor{ThingsByName[g.name].getter, ThingsByName[g.name].setter, ThingsByName[g.name].setTimeGetter}
 			case g := <-manager.getGetter:
 				g.response <- Things[g.id].getter
 			case s := <-manager.getSetter:

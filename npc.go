@@ -4,16 +4,6 @@ import (
 	"fmt"
 )
 
-// I'm trying something different for NPCs.
-// Rather than managing their data with Managers like other data currently is, 
-// Each NPC will manage itself, with its own goroutine
-
-type npcIdentifier identifier
-
-func (i npcIdentifier) String() string {
-	return identifier(i).String()
-}
-
 /// Animation:
 /// Animate will be called every time a player enters a previously-empty room
 /// The proper way to Animate, is for the dna function to continuously run while 
@@ -25,43 +15,84 @@ func (i npcIdentifier) String() string {
 ///
 /// @note room entry animation may be changed to local area entry in the future.
 ///
-type npc struct {
-	id       itemIdentifier
-	name     string
-	brief    string
-	sleeping bool
-	dna      string
+type Npc struct {
+	id           identifier
+	name         string
+	Brief        string
+	Sleeping     bool
+	Dna          string
+	Location     identifier
+	LocationType ItemLocationType ///< @todo ? remove this ? it isn't strictly necessary, as we can type assert to find the type
+	Items        map[identifier]bool
 }
 
-func (n npc) Id() itemIdentifier {
+func (n *Npc) Id() identifier {
 	return n.id
 }
 
-func (n npc) Name() string {
+func (n *Npc) SetId(id identifier) {
+	n.id = id
+}
+
+func (n *Npc) Name() string {
 	return n.name
 }
 
-func (n npc) Brief() string {
-	return n.brief
+func (n *Npc) selfWrappedDna() string {
+	return "(function(self) {" + n.Dna + "})(" + n.id.String() + ")"
 }
 
-func (n npc) Sleeping() bool {
-	return n.sleeping
-}
-
-func (n npc) Dna() string {
-	return n.dna
-}
-
-func (n npc) selfWrappedDna() string {
-	return "(function(self) {" + n.dna + "})(" + n.id.String() + ")"
-}
-
-func (n npc) Animate(world *metaManager) {
-	if n.dna == "" {
+func (n *Npc) Animate(world *metaManager) {
+	if n.Dna == "" {
 		fmt.Println("Could not animate lifeless " + n.Name())
 		return
 	}
-	n.sleeping = false
+	n.Sleeping = false
 	world.script.Eval(n.selfWrappedDna())
+}
+
+type NpcManager ThingManager
+
+/// @todo remove this, after changing things which call it to store Accessors rather than IDs
+/// @todo change this to return an error object with an err string, rather than printing the err and returning bool
+func (m NpcManager) GetById(id identifier) (*Npc, bool) {
+	accessor := ThingManager(m).GetThingAccessor(id)
+	if accessor.ThingGetter == nil {
+		fmt.Println("NpcManager.GetById error: ThingGetter nil " + id.String())
+		return &Npc{}, false
+	}
+	thing, ok := <-accessor.ThingGetter
+	if !ok {
+		fmt.Println("NpcManager.GetById error: item ThingGetter closed " + id.String())
+		return &Npc{}, false
+	}
+	item, ok := thing.(*Npc)
+	if !ok {
+		fmt.Println("NpcManager.GetById error: item accessor returned non-item " + id.String())
+		return &Npc{}, false
+	}
+	return item, ok
+}
+
+/// @todo change this to return an error object with an err string, rather than printing the err and returning bool
+func (m NpcManager) ChangeById(id identifier, modify func(p *Npc)) bool {
+	accessor := ThingManager(m).GetThingAccessor(id)
+	if accessor.ThingGetter == nil {
+		fmt.Println("NpcManager.ChangeById error: ThingGetter nil " + id.String())
+		return false
+	}
+	setMsg, ok := <-accessor.ThingSetter
+	if !ok {
+		fmt.Println("NpcManager.ChangeById error: item ThingGetter closed " + id.String())
+		return false
+	}
+	setMsg.chainTime <- NotChaining
+	item, ok := setMsg.it.(*Npc)
+	if !ok {
+		fmt.Println("NpcManager.ChangeById error: item accessor returned non-item " + id.String())
+		return false
+	}
+	modify(item)
+	setMsg.set <- item
+	return true
 }

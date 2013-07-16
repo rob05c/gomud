@@ -33,29 +33,36 @@ func ToSentence(s string) string {
 	return strings.ToUpper(string(s[0])) + s[1:]
 }
 
+func tryPlayerWrite(playerId identifier, players *PlayerManager, message string, error string) bool {
+	player, exists := players.GetById(playerId)
+	if !exists {
+		fmt.Println(error + " " + playerId.String())
+		return false
+	}
+	player.Write(message)
+	return true
+}
+
 func say(message string, playerId identifier, world *metaManager) {
 	if len(message) == 0 {
 		return
 	}
-	player, exists := world.players.getPlayerById(playerId)
+	player, exists := PlayerManager(*world.players).GetById(playerId)
 	if !exists {
 		fmt.Println("say error: getPlayer got nonexistent player " + playerId.String())
 		return
 	}
-	rId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("say error: playerRoom got nonexistent Room for " + player.Name())
-		return
+	rid := player.Room
+
+	r, ok := RoomManager(*world.rooms).GetById(rid)
+	if !ok {
+		return // don't print error - RoomManager will
 	}
-	r, exists := world.rooms.getRoom(rId)
-	if !exists {
-		fmt.Println("say error: getRoom got nonexistent Room " + rId.String())
-		return
-	}
+
 	message = ToSentence(message)
 	RoomMessage := Pink + ToProper(player.Name()) + " says, \"" + message + "\"" + Reset // @todo make this locale aware, << >> vs " " vs ' '
 	selfMessage := Pink + "You say, \"" + message + "\"" + Reset
-	go r.Write(RoomMessage, world.playerLocations, player.Name())
+	go r.Write(RoomMessage, *world.players, player.Name())
 	go player.Write(selfMessage)
 }
 
@@ -64,7 +71,7 @@ func tell(message string, playerId identifier, telleePlayer string, world *metaM
 		return
 	}
 	telleePlayer = strings.ToLower(telleePlayer)
-	player, exists := world.players.getPlayerById(playerId)
+	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("say error: getPlayer got nonexistent player " + playerId.String())
 		return
@@ -75,7 +82,7 @@ func tell(message string, playerId identifier, telleePlayer string, world *metaM
 		return
 	}
 
-	tellee, exists := world.players.getPlayer(telleePlayer)
+	tellee, exists := world.players.GetByName(telleePlayer)
 	if !exists {
 		go player.Write("Your own voice reverberates in your head.")
 		return
@@ -89,534 +96,613 @@ func tell(message string, playerId identifier, telleePlayer string, world *metaM
 }
 
 func walk(d Direction, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
+	_, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("walk called with invalid player id '" + playerId.String() + "'")
 		return
 	}
-	world.playerLocations.movePlayer(playerId, d, func(success bool) {
-		if !success {
-			player.Write("You can't go there.") // @todo tell the user why (no exit, blocked, etc.)
-			return
-		}
-		go look(playerId, world)
-	})
+	world.players.Move(playerId, d, world)
 }
 
 func look(playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
+	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("look called with invalid player id '" + playerId.String() + "'")
 		return
 	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("look called with invalid  player'" + player.Name() + "'")
-		return
-	}
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
+	RoomId := player.Room
+	ok := RoomManager(*world.rooms).ChangeById(identifier(RoomId), func(r *Room) {
+		player.Write(r.Print(world, player.Name()))
+	})
+	if !ok {
 		fmt.Println("look called with player with invalid Room '" + player.Name() + "' " + strconv.Itoa(int(RoomId)))
-		return
 	}
-	player.Write(currentRoom.Print(world, player.Name()))
 }
 
 func quicklook(playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
+	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("quicklook called with invalid player " + playerId.String())
 		return
 	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("quicklook called with invalid player  '" + player.Name() + "'")
-		return
-	}
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
+	RoomId := player.Room
+	ok := RoomManager(*world.rooms).ChangeById(identifier(RoomId), func(r *Room) {
+		player.Write(r.PrintBrief(world, player.Name()))
+	})
+	if !ok {
 		fmt.Println("quicklook called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
 		return
 	}
-	player.Write(currentRoom.PrintBrief(world, player.Name()))
 }
 
 func makeRoom(direction Direction, name string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("makeRoom called with nonexistent player " + playerId.String())
-		return
+	chainTime := <-NextChainTime
+	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
+	for {
+		things := make([]SetterMsg, 0, 2)
+		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("connectRoom error: player chan closed " + playerId.String())
+			return
+		} else if resetChain {
+			continue
+		}
+		things = append(things, playerSet)
+
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
+		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("PlayerManager.Move error: room chan closed " + playerId.String())
+			ReleaseThings(things)
+			return
+		} else if resetChain {
+			ReleaseThings(things)
+			continue
+		}
+		things = append(things, roomSet)
+
+		newRoom := Room{
+			name:        name,
+			Description: "",
+			Exits:       make(map[Direction]identifier),
+			Players:     make(map[identifier]bool),
+			Items:       make(map[identifier]PlayerItemType),
+		}
+		newRoom.Exits[direction.reverse()] = roomSet.it.Id()
+		newRoomId := ThingManager(*world.rooms).Add(&newRoom)
+		roomSet.it.(*Room).Exits[direction] = newRoomId
+		playerSet.it.(*Player).Write(name + " materializes to the " + direction.String() + ". It is nondescript and seems as though it might fade away at any moment.")
+		ReleaseThings(things)
+		break
 	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("makeRoom called with invalid player '" + player.Name() + "'")
-		return
-	}
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("makeRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
-		return
-	}
-	currentRoom.NewRoom(world.rooms, direction, name, "")
-	player.Write(name + " materializes to the " + direction.String() + ". It is nondescript and seems as though it might fade away at any moment.")
 }
 
-func connectRoom(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("makeRoom called with nonexistent player " + playerId.String())
-		return
-	}
+func connectRoom(args []string, playerId identifier, world *metaManager) bool {
+	chainTime := <-NextChainTime
 	if len(args) < 2 {
-		player.Write(commandRejectMessage + "5")
-		return
+		tryPlayerWrite(playerId, world.players, "What do you want to connect?", "connectroom error: insufficient args and no player")
+		return false
 	}
 	toConnectRoomIdInt, err := strconv.Atoi(args[1])
 	if err != nil {
-		player.Write(commandRejectMessage + "6")
-		return
+		tryPlayerWrite(playerId, world.players, "What do you want to connect?", "connectroom error: invalid roomid and no player")
+		return false
 	}
-	toConnectRoomId := roomIdentifier(toConnectRoomIdInt)
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("connectRoom called with invalid player '" + player.Name() + "'")
-		return
-	}
-
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
-		return
-	}
+	toConnectRoomId := identifier(toConnectRoomIdInt)
+	connectRoomAccessor := ThingManager(*world.rooms).GetThingAccessor(toConnectRoomId)
 
 	newRoomDirection := stringToDirection(args[0])
-	toConnectRoom, connectionRoomExists := world.rooms.getRoom(toConnectRoomId)
-	if !connectionRoomExists {
-		player.Write("No Room exists with the given id.")
-		return
+	if newRoomDirection == -1 {
+		tryPlayerWrite(playerId, world.players, "What direction do you want to connect?", "connectroom error: invalid direction and no player")
+		return false
 	}
 
-	world.rooms.changeRoom(currentRoom.id, func(r *Room) {
-		r.exits[newRoomDirection] = toConnectRoom.id
-	})
-	world.rooms.changeRoom(toConnectRoom.id, func(r *Room) {
-		r.exits[newRoomDirection.reverse()] = currentRoom.id
-		go player.Write("You become aware of a " + newRoomDirection.String() + " passage to " + toConnectRoom.name + ".")
-	})
+	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
+	for {
+		sets := make([]SetterMsg, 0, 3)
+		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("connectRoom error: player chan closed " + playerId.String())
+			return false
+		} else if resetChain {
+			continue
+		}
+		sets = append(sets, playerSet)
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
+		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("PlayerManager.Move error: room chan closed " + playerId.String())
+			ReleaseThings(sets)
+			return false
+		} else if resetChain {
+			ReleaseThings(sets)
+			continue
+		}
+		sets = append(sets, roomSet)
+		connectRoomSet, ok, resetChain := connectRoomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("PlayerManager.Move error: room chan closed " + playerId.String())
+			ReleaseThings(sets)
+			return false
+		} else if resetChain {
+			ReleaseThings(sets)
+			continue
+		}
+		sets = append(sets, connectRoomSet)
+
+		roomSet.it.(*Room).Exits[newRoomDirection] = connectRoomSet.it.Id()
+		connectRoomSet.it.(*Room).Exits[newRoomDirection.reverse()] = roomSet.it.Id()
+		playerSet.it.(*Player).Write("You become aware of a " + newRoomDirection.String() + " passage to " + connectRoomSet.it.Name() + ".")
+		ReleaseThings(sets)
+		break
+	}
+	return true
 }
 
-func describeRoom(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("describeRoom called with nonexistent player " + playerId.String())
-		return
-	}
+func describeRoom(args []string, playerId identifier, world *metaManager) bool {
 	if len(args) < 1 {
-		player.Write(commandRejectMessage + "3") ///< @todo give better  error
-		return
+		tryPlayerWrite(playerId, world.players, commandRejectMessage, "describeRoom called with invalid player")
+		return false
 	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("describeRoom called with invalid player '" + player.Name() + "'")
-		return
+
+	chainTime := <-NextChainTime
+	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
+	for {
+		sets := make([]SetterMsg, 0, 2)
+		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("describeroom error: player chan closed " + playerId.String())
+			return false
+		} else if resetChain {
+			continue
+		}
+		sets = append(sets, playerSet)
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
+		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("describeroom error: room chan closed " + playerId.String())
+			ReleaseThings(sets)
+			return false
+		} else if resetChain {
+			ReleaseThings(sets)
+			continue
+		}
+		sets = append(sets, roomSet)
+
+		r := roomSet.it.(*Room)
+		r.Description = strings.Join(args[0:], " ")
+		roomSet.it = r
+		playerSet.it.(*Player).Write("Everything seems a bit more corporeal.")
+		ReleaseThings(sets)
+		break
 	}
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
-		return
-	}
-	world.rooms.changeRoom(currentRoom.id, func(r *Room) {
-		r.description = strings.Join(args[0:], " ")
-		go player.Write("Everything seems a bit more corporeal.")
-	})
+	return true
 }
 
 func RoomId(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
+	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("Roomid called with nonexistent player " + playerId.String())
 		return
 	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
+	currentRoom, exists := RoomManager(*world.rooms).GetById(player.Room)
 	if !exists {
-		fmt.Println("Roomid called with invalid player '" + player.Name() + "'")
-		return
-	}
-
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
+		fmt.Println("connectRoom called with player with invalid Room '" + player.Name() + "' " + player.Room.String())
 		return
 	}
 	player.Write(currentRoom.id.String())
 }
 
 func createItem(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("createitem called with nonexistent player " + playerId.String())
-		return
-	}
 	if len(args) < 1 {
-		player.Write("What do you want to create?")
+		tryPlayerWrite(playerId, world.players, "What do you want to create?", "createItem called with invalid player")
 		return
 	}
-	itemName := args[0]
-	var it item = genericItem{
-		id:    itemIdentifier(invalidIdentifier),
-		name:  itemName,
-		brief: "An amorphous blob"}
-
-	id := world.items.createItem(it)
-	world.itemLocations.addItem(id, player.Id(), ilPlayer)
-	player.Write("A " + itemName + " materialises in your hands.")
+	item := Item{
+		id:           invalidIdentifier,
+		name:         args[0],
+		brief:        "An amorphous blob",
+		Location:     playerId,
+		LocationType: ilPlayer,
+		Items:        make(map[identifier]bool),
+	}
+	id := ThingManager(*world.items).Add(&item)
+	world.players.ChangeById(playerId, func(player *Player) {
+		player.Items[id] = piItem
+		tryPlayerWrite(playerId, world.players, "A "+item.Name()+" materialises in your hands.", "createItem succeeded but player disappeared")
+	})
 }
 
 func createNpc(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("createnpc called with invalid player " + playerId.String())
-		return
-	}
 	if len(args) < 1 {
-		player.Write("What do you want to create?")
+		tryPlayerWrite(playerId, world.players, "Who do you want to create?", "createNpc called with invalid player")
 		return
 	}
-	itemName := args[0]
-	var it item = npc{
-		id:       itemIdentifier(invalidIdentifier),
-		name:     itemName,
-		brief:    "A mysterious figure",
-		sleeping: false,
-		dna:      ""}
-	id := world.items.createItem(it)
-	world.itemLocations.addItem(id, identifier(player.id), ilPlayer)
-	player.Write("A " + itemName + " materialises in your hands.")
+	npc := Npc{
+		id:           invalidIdentifier,
+		name:         args[0],
+		Brief:        "A mysterious figure",
+		Location:     playerId,
+		LocationType: ilPlayer,
+		Dna:          "",
+		Sleeping:     false,
+		Items:        make(map[identifier]bool),
+	}
+	id := ThingManager(*world.npcs).Add(&npc)
+	world.players.ChangeById(playerId, func(player *Player) {
+		player.Items[id] = piNpc
+		tryPlayerWrite(playerId, world.players, "A "+npc.Name()+" materialises in your hands.", "createNpc succeeded but player disappeared")
+	})
 }
 
 func animate(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("animate called with invalid player " + playerId.String())
-		return
-	}
 	if len(args) < 2 {
-		player.Write("Who do you want to animate?")
+		tryPlayerWrite(playerId, world.players, "Who do you want to animate?", "animate called with invalid player")
 		return
 	}
 
 	itemInt, err := strconv.Atoi(args[0])
 	if err != nil {
-		player.Write("Please provide a valid identifier to animate.")
+		tryPlayerWrite(playerId, world.players, "Please provide a valid identifier to animate", "animate called with invalid id")
 		return
 	}
-	itemId := itemIdentifier(itemInt)
-
+	itemId := identifier(itemInt)
 	newDna := strings.Join(args[1:], " ")
 
-	world.items.changeItem(itemId, func(i *item) {
-		switch it := (*i).(type) {
-		case genericItem:
-			go player.Write("You cannot animate items.")
-		case npc:
-			it.dna = newDna
-			*i = it
-			go player.Write((*i).Brief() + " suddenly comes to life.")
-		default:
-			player.Write("The " + (*i).Name() + " resists your attempt to animate it.")
-			go fmt.Println("describe called with unknown item type '" + (*i).Id().String() + "'")
-		}
+	world.npcs.ChangeById(itemId, func(n *Npc) {
+		n.Dna = newDna
+		tryPlayerWrite(playerId, world.players, n.Brief+" suddenly comes to life.", "animate succeeded but player disappeared")
+	})
+}
+
+func describeNpc(args []string, playerId identifier, world *metaManager) {
+	if len(args) < 2 {
+		tryPlayerWrite(playerId, world.players, "What do you want to describe?", "describeNpc called with invalid params")
+		return
+	}
+
+	itemInt, err := strconv.Atoi(args[0])
+	if err != nil {
+		tryPlayerWrite(playerId, world.players, "Please provide a valid identifier to describe?", "describeNpc called with invalid id")
+		return
+	}
+	itemId := identifier(itemInt)
+	newDescription := strings.Join(args[1:], " ")
+
+	world.npcs.ChangeById(itemId, func(n *Npc) {
+		n.Brief = newDescription
+		tryPlayerWrite(playerId, world.players, "The "+n.Name()+" shimmers for a minute, looking strangely different after.", "describeNpc succeeded but player disappered")
 	})
 }
 
 func describeItem(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("describeItem called with invalid player " + playerId.String())
-		return
-	}
 	if len(args) < 2 {
-		player.Write("What do you want to describe?")
+		tryPlayerWrite(playerId, world.players, "What do you want to describe?", "describeItem called with invalid params")
 		return
 	}
 
 	itemInt, err := strconv.Atoi(args[0])
 	if err != nil {
-		player.Write("Please provide a valid identifier to describe.")
+		tryPlayerWrite(playerId, world.players, "Please provide a valid identifier to describe?", "describeItem called with invalid id")
 		return
 	}
-	itemId := itemIdentifier(itemInt)
-
+	itemId := identifier(itemInt)
 	newDescription := strings.Join(args[1:], " ")
 
-	world.items.changeItem(itemId, func(i *item) {
-		switch it := (*i).(type) {
-		case genericItem:
-			it.brief = newDescription
-			*i = it
-			player.Write("The " + (*i).Name() + " seems less ugly than it was.")
-		case npc:
-			it.brief = newDescription
-			*i = it
-			player.Write("The " + (*i).Name() + " shimmers for a minute, looking strangely different after.")
-		default:
-			player.Write("The " + (*i).Name() + " resists your attempt to describe it.")
-			fmt.Println("describe called with unknown item type '" + (*i).Id().String() + "'")
-			return
-		}
+	world.items.ChangeById(itemId, func(i *Item) {
+		i.brief = newDescription
+		tryPlayerWrite(playerId, world.players, "The "+i.Name()+" shimmers for a minute, looking strangely different after.", "describeItem succeeded but player disappered")
 	})
 }
 
-/// @todo fix this to lock the player's location before moving the item
-func get(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("get called with invalid player " + playerId.String())
-		return
-	}
+func get(args []string, playerId identifier, world *metaManager) bool {
 	if len(args) < 1 {
-		player.Write("What do you want to get?")
-		return
-	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("get called with invalid player '" + player.Name() + "'")
-		return
+		tryPlayerWrite(playerId, world.players, "What do you want to get?", "get called with invalid params")
+		return false
 	}
 
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("get called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
-		return
-	}
-
-	itemInt, err := strconv.Atoi(args[0])
-	if err != nil {
-		// getting by name, not id
-		items := world.itemLocations.locationItems(identifier(RoomId), ilRoom)
-		found := false
-		for _, itemId := range items {
-			it, exists := world.items.getItem(itemId)
-			if !exists {
-				fmt.Println("get got nonexistent item from itemLocationManager '" + itemId.String() + "'")
-			}
-			if it.Name() == args[0] {
-				itemInt = int(it.Id())
-				found = true
-				break
-			}
+	chainTime := <-NextChainTime
+	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
+	for {
+		sets := make([]SetterMsg, 0, 2)
+		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("get error: player chan closed " + playerId.String())
+			return false
+		} else if resetChain {
+			//			fmt.Println("chain prempted: looping " + playerId.String())
+			continue
 		}
-		if !found {
-			player.Write("That is not here.0")
-			return
+		sets = append(sets, playerSet)
+		player := playerSet.it.(*Player)
+		roomId := player.Room
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(roomId)
+		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("get error: room chan closed " + player.Id().String() + " room " + roomId.String())
+			ReleaseThings(sets)
+			return false
+		} else if resetChain {
+			//			fmt.Println("chain prempted: looping " + playerId.String())
+			ReleaseThings(sets)
+			continue
 		}
-	}
-	it, exists := world.items.getItem(itemIdentifier(itemInt))
-	if !exists {
-		player.Write("That does not exist.")
-		return
-	}
+		sets = append(sets, roomSet)
 
-	switch it.(type) {
-	case genericItem:
-		world.itemLocations.moveItem(it.Id(), identifier(currentRoom.id), ilRoom, player.Id(), ilPlayer, func(success bool) {
-			if success {
-				player.Write("You pick up " + it.Brief() + ".")
-			} else {
-				player.Write("That is not here.1")
-			}
-		})
-	case npc:
-		player.Write(it.Brief() + " stares at you awkwardly.")
-	}
-}
-
-/// @todo fix this to lock the player's location before moving the item
-func drop(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("get called with invalid player " + playerId.String())
-		return
-	}
-
-	if len(args) < 1 {
-		player.Write("What do you want to drop?")
-		return
-	}
-
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("drop called with invalid player '" + player.Name() + "'")
-		return
-	}
-
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("drop called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
-		return
-	}
-	itemInt, err := strconv.Atoi(args[0])
-	if err != nil {
-		// getting by name, not id
-		items := world.itemLocations.locationItems(playerId, ilPlayer)
-		found := false
-		for _, itemId := range items {
-			it, exists := world.items.getItem(itemId)
-			if !exists {
-				fmt.Println("drop got nonexistent item from itemLocationManager '" + itemId.String() + "'")
-			}
-			if it.Name() == args[0] {
-				itemInt = int(itemId)
-				found = true
-				break
-			}
-		}
-		if !found {
-			player.Write("You are not holding that.")
-			return
-		}
-	}
-
-	it, exists := world.items.getItem(itemIdentifier(itemInt))
-	if !exists {
-		player.Write("That does not exist.")
-		return
-	}
-	world.itemLocations.moveItem(it.Id(), playerId, ilPlayer, identifier(currentRoom.id), ilRoom, func(success bool) {
-		if success {
-			player.Write("You drop " + it.Brief() + ".")
-			fmt.Println("dropping...")
-			if npc, ok := it.(npc); ok {
-				npc.Animate(world) ///< @todo this probably should be in a Manager, not Commands. Animate objects?
+		itemInt, err := strconv.Atoi(args[0])
+		if err == nil {
+			itemId := identifier(itemInt)
+			itemType, ok := roomSet.it.(*Room).Items[itemId]
+			if !ok {
+				tryPlayerWrite(playerId, world.players, "That is not here.", "get called with invalid id")
+				ReleaseThings(sets)
+				return false
+			} else if itemType != piItem {
+				tryPlayerWrite(playerId, world.players, "You can't pick that up.", "get called with nonitem")
+				ReleaseThings(sets)
+				return false
 			}
 		} else {
-			player.Write("You aren't holding that.")
+			found := false
+			for itemId, itemType := range roomSet.it.(*Room).Items {
+				if itemType != piItem {
+					continue
+				} else if it, exists := world.items.GetById(itemId); !exists {
+					fmt.Println("get got nonexistent item in room '" + itemId.String() + "'")
+					continue
+				} else if it.Name() == args[0] {
+					itemInt = int(it.Id())
+					found = true
+					break
+				}
+			}
+			if !found {
+				tryPlayerWrite(playerId, world.players, "That is not here.", "get player failed to write")
+				ReleaseThings(sets)
+				return false
+			}
 		}
-	})
+
+		itemAccessor := ThingManager(*world.items).GetThingAccessor(identifier(itemInt))
+		itemSet, ok, resetChain := itemAccessor.TryGet(chainTime)
+		if !ok {
+			tryPlayerWrite(playerId, world.players, "That is not here.", "get error: item chan closed")
+			roomSet.set <- roomSet.it
+			playerSet.set <- playerSet.it
+			return false
+		} else if resetChain {
+			roomSet.set <- roomSet.it
+			playerSet.set <- playerSet.it
+			continue
+		}
+		sets = append(sets, itemSet)
+
+		itemId := identifier(itemInt)
+		delete(roomSet.it.(*Room).Items, itemId)
+		playerSet.it.(*Player).Items[itemId] = piItem
+		it := itemSet.it.(*Item)
+		it.Location = playerSet.it.(*Player).Id()
+		itemSet.it = it
+		playerSet.it.(*Player).Write("You pick up " + it.Brief())
+		ReleaseThings(sets)
+		break
+	}
+	return true
+}
+
+func drop(args []string, playerId identifier, world *metaManager) bool {
+	if len(args) < 1 {
+		tryPlayerWrite(playerId, world.players, "What do you want to drop?", "drop called with invalid params")
+		return false
+	}
+
+	chainTime := <-NextChainTime
+	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
+	for {
+		sets := make([]SetterMsg, 0, 3)
+		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("drop error: player chan closed " + playerId.String())
+			return false
+		} else if resetChain {
+			//			fmt.Println("drop prempted: looping " + playerId.String())
+			continue
+		}
+		sets = append(sets, playerSet)
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
+		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("drop error: room chan closed " + playerId.String())
+			ReleaseThings(sets)
+			return false
+		} else if resetChain {
+			ReleaseThings(sets)
+			continue
+		}
+		sets = append(sets, roomSet)
+
+		itemInt, err := strconv.Atoi(args[0])
+		if err == nil {
+			itemId := identifier(itemInt)
+			_, ok := playerSet.it.(*Player).Items[itemId]
+			if !ok {
+				tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop called with invalid id")
+				ReleaseThings(sets)
+				return false
+			}
+		} else {
+			found := false
+			for itemId, _ := range playerSet.it.(*Player).Items {
+				if it, exists := world.items.GetById(itemId); !exists {
+					fmt.Println("drop got nonexistent item in player '" + itemId.String() + "'")
+					continue
+				} else if it.Name() == args[0] {
+					itemInt = int(it.Id())
+					found = true
+					break
+				}
+			}
+			if !found {
+				tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop player failed to write")
+				ReleaseThings(sets)
+				return false
+			}
+		}
+
+		itemAccessor := ThingManager(*world.items).GetThingAccessor(identifier(itemInt))
+		itemSet, ok, resetChain := itemAccessor.TryGet(chainTime)
+		if !ok {
+			tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop error: item chan closed")
+			ReleaseThings(sets)
+			return false
+		} else if resetChain {
+			ReleaseThings(sets)
+			continue
+		}
+		sets = append(sets, itemSet)
+
+		itemId := identifier(itemInt)
+		itemType := playerSet.it.(*Player).Items[itemId]
+		delete(playerSet.it.(*Player).Items, itemId)
+		roomSet.it.(*Room).Items[itemId] = itemType
+		it := itemSet.it.(*Item)
+		it.Location = playerSet.it.(*Player).Id()
+		itemSet.it = it
+		playerSet.it.(*Player).Write("You drop " + it.Brief())
+		ReleaseThings(sets)
+		break
+	}
+	return true
 }
 
 func items(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("Items called with invalid player2 '" + playerId.String() + "'")
-		return
-	}
-
-	items := world.itemLocations.locationItems(playerId, ilPlayer)
-	itemString := ""
-	for _, itemId := range items {
-		it, exists := world.items.getItem(itemId)
-		if !exists {
-			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+	world.players.ChangeById(playerId, func(player *Player) {
+		itemString := ""
+		for itemId, itemType := range player.Items {
+			var manager ThingManager
+			switch itemType {
+			case piItem:
+				manager = ThingManager(*world.items)
+			case piNpc:
+				manager = ThingManager(*world.npcs)
+			default:
+				fmt.Println("Items got invalid item type  '" + playerId.String() + "'")
+				continue
+			}
+			it, exists := manager.GetById(itemId)
+			if !exists {
+				fmt.Println("Items got invalid item  '" + playerId.String() + "'")
+				continue
+			}
+			itemString += it.Id().String() + it.Name() + "\r\n"
 		}
-		itemString += it.Id().String() + it.Name() + "\r\n"
-	}
-	if len(itemString) > 0 {
-		player.Write(itemString[:len(itemString)-2])
-	}
+		if len(itemString) > 0 {
+			player.Write(itemString[:len(itemString)-2])
+		} else {
+			player.Write("")
+		}
+	})
 }
 
 func itemsHere(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("itemshere called with invalid player2 '" + playerId.String() + "'")
-		return
-	}
-	RoomId, exists := world.playerLocations.playerRoom(player.Name())
-	if !exists {
-		fmt.Println("items called with invalid player '" + player.Name() + "'")
+	if len(args) < 1 {
+		tryPlayerWrite(playerId, world.players, "What do you want to drop?", "drop called with invalid params")
 		return
 	}
 
-	currentRoom, exists := world.rooms.getRoom(RoomId)
-	if !exists {
-		fmt.Println("items called with player with invalid Room '" + player.Name() + "' " + RoomId.String())
-		return
-	}
-
-	items := world.itemLocations.locationItems(identifier(currentRoom.id), ilRoom)
-	for _, itemId := range items {
-		it, exists := world.items.getItem(itemId)
-		if !exists {
-			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+	chainTime := <-NextChainTime
+	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
+	for {
+		sets := make([]SetterMsg, 0, 2)
+		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("describeroom error: player chan closed " + playerId.String())
+			return
+		} else if resetChain {
+			continue
 		}
-		player.Write(it.Id().String() + it.Name() + "\t" + it.Brief())
-	}
+		sets = append(sets, playerSet)
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
+		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		if !ok {
+			fmt.Println("describeroom error: room chan closed " + playerId.String())
+			ReleaseThings(sets)
+			return
+		} else if resetChain {
+			ReleaseThings(sets)
+			continue
+		}
+		sets = append(sets, roomSet)
 
+		itemString := ""
+		for itemId, itemType := range roomSet.it.(*Room).Items {
+			if itemType != piItem {
+				continue
+			}
+			it, exists := world.items.GetById(itemId)
+			if !exists {
+				fmt.Println("Items got invalid item  '" + playerId.String() + "'")
+				continue
+			}
+			itemString += it.Id().String() + it.Name() + "\r\n"
+		}
+		if len(itemString) > 0 {
+			playerSet.it.(*Player).Write(itemString[:len(itemString)-2])
+		} else {
+			playerSet.it.(*Player).Write("")
+		}
+		ReleaseThings(sets)
+		break
+	}
 }
 
 func inventory(args []string, playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("inventory called with invalid player2 '" + playerId.String() + "'")
-		return
-	}
-	items := world.itemLocations.locationItems(playerId, ilPlayer)
-	if len(items) == 0 {
-		player.Write("You aren't carrying anything.")
-		return
-	}
-	s := "You are carrying "
-	if len(items) == 1 {
-		it, exists := world.items.getItem(items[0])
-		if !exists {
-			fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
-			s += "nothing of interest."
+	world.players.ChangeById(playerId, func(player *Player) {
+		s := "You are carrying "
+		var items []*Item
+		for itemId, itemType := range player.Items {
+			if itemType != piItem {
+				continue
+			}
+			item, exists := world.items.GetById(itemId)
+			if !exists {
+				continue
+			}
+			items = append(items, item)
+		}
+		if len(items) == 0 {
+			s += "nothing."
 			player.Write(s)
 			return
 		}
-		s += it.Brief()
-		s += "."
-		player.Write(s)
-		return
-	}
-	if len(items) == 2 {
-		it, exists := world.items.getItem(items[0])
-		if !exists {
-			fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[0].String() + "'")
-			s += "nothing of interest"
-		} else {
+		if len(items) == 1 {
+			it := items[0]
 			s += it.Brief()
+			s += "."
+			player.Write(s)
+			return
 		}
-		s += ", "
-		it, exists = world.items.getItem(items[1])
-		if !exists {
-			fmt.Println("inventory got nonexistent item from itemLocationManager '" + items[1].String() + "'")
-			s += "nothing of interest"
-		} else {
-			s += it.Brief()
+		if len(items) == 2 {
+			s += items[0].Brief()
+			s += ", "
+			s += items[1].Brief()
+			s += "."
+			player.Write(s)
+			return
 		}
-		s += "."
-		player.Write(s)
-		return
-	}
 
-	lastItem := items[len(items)-1]
-	items = items[:len(items)-1]
-	for _, itemId := range items {
-		it, exists := world.items.getItem(itemId)
-		if !exists {
-			fmt.Println("inventory got nonexistent item from itemLocationManager '" + itemId.String() + "'")
+		lastItem := items[len(items)-1]
+		items = items[:len(items)-1]
+		for _, item := range items {
+			s += item.Brief() + ", "
 		}
-		s += it.Brief() + ", "
-	}
-	it, exists := world.items.getItem(lastItem)
-	if !exists {
-		fmt.Println("inventory got nonexistent item from itemLocationManager '" + lastItem.String() + "'")
-		s += "nothing of interest"
-	} else {
-		s += it.Brief()
-	}
-	s += "."
-	player.Write(s)
+		s += lastItem.Brief()
+		s += "."
+		player.Write(s)
+	})
 }
 
 func help(playerId identifier, world *metaManager) {
-	player, exists := world.players.getPlayerById(playerId)
-	if !exists {
-		fmt.Println("help called with invalid player'" + playerId.String() + "'")
-		return
-	}
 	s := "movement\r\n" +
 		"------------------------------\r\n" +
 		"To move in a direction, simply type the cardinal direction you wish to move in, e.g. 'north'. Shortcuts also work, e.g. 'n'.\r\n" +
@@ -663,13 +749,13 @@ func help(playerId identifier, world *metaManager) {
 		"mud_reval(self, wait)                  execute this NPC's animation script again in *wait* milliseconds\r\n" +
 		"mud_RoomPlayers(self)                  get an array of the names of players in the Room\r\n" +
 		"mud_attackPlayer(self, player, damage) attack the given player for the given integral amount of damage\r\n"
-	player.Write(s)
+	tryPlayerWrite(playerId, world.players, s, "help error: player chan closed")
 }
 
 func initCommandsAdmin() {
-	commands["makeRoom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["makeroom"] = func(args []string, playerId identifier, world *metaManager) {
 		if len(args) < 2 {
-			player, exists := world.players.getPlayerById(playerId)
+			player, exists := world.players.GetById(playerId)
 			if !exists {
 				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 				return
@@ -679,7 +765,7 @@ func initCommandsAdmin() {
 		}
 		newRoomDirection := stringToDirection(args[0])
 		if newRoomDirection < north || newRoomDirection > southwest {
-			player, exists := world.players.getPlayerById(playerId)
+			player, exists := world.players.GetById(playerId)
 			if !exists {
 				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 				return
@@ -689,7 +775,7 @@ func initCommandsAdmin() {
 		}
 		newRoomName := strings.Join(args[1:], " ")
 		if len(newRoomName) == 0 {
-			player, exists := world.players.getPlayerById(playerId)
+			player, exists := world.players.GetById(playerId)
 			if !exists {
 				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 				return
@@ -699,19 +785,19 @@ func initCommandsAdmin() {
 		}
 		makeRoom(newRoomDirection, newRoomName, playerId, world)
 	}
-	commands["mr"] = commands["makeRoom"]
+	commands["mr"] = commands["makeroom"]
 
-	commands["connectRoom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["connectroom"] = func(args []string, playerId identifier, world *metaManager) {
 		connectRoom(args, playerId, world)
 	}
-	commands["cr"] = commands["connectRoom"]
+	commands["cr"] = commands["connectroom"]
 
-	commands["describeRoom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["describeroom"] = func(args []string, playerId identifier, world *metaManager) {
 		describeRoom(args, playerId, world)
 	}
-	commands["dr"] = commands["describeRoom"]
+	commands["dr"] = commands["describeroom"]
 
-	commands["Roomid"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["roomid"] = func(args []string, playerId identifier, world *metaManager) {
 		RoomId(args, playerId, world)
 	}
 
@@ -729,7 +815,10 @@ func initCommandsAdmin() {
 		describeItem(args, playerId, world)
 	}
 	commands["di"] = commands["describeitem"]
-	commands["describenpc"] = commands["describeitem"]
+
+	commands["describenpc"] = func(args []string, playerId identifier, world *metaManager) {
+		describeNpc(args, playerId, world)
+	}
 	commands["dn"] = commands["describenpc"]
 
 	commands["animate"] = func(args []string, playerId identifier, world *metaManager) {

@@ -5,47 +5,38 @@ import (
 	"fmt"
 )
 
-// @todo create roomIdentifier.String()
-
-type roomIdentifier identifier
-
-func (i roomIdentifier) String() string {
-	return identifier(i).String()
-}
-
-//
-// Room
-//
 type Room struct {
-	id          roomIdentifier
+	id          identifier
 	name        string
-	description string
-	exits       map[Direction]roomIdentifier
+	Description string
+	Exits       map[Direction]identifier
+	Players     map[identifier]bool
+	Items       map[identifier]PlayerItemType
 }
 
-func (r Room) Id() identifier {
-	return identifier(r.id)
+func (r *Room) Id() identifier {
+	return r.id
 }
 
-func (r Room) SetId(newId identifier) {
-	r.id = roomIdentifier(newId)
+func (r *Room) SetId(newId identifier) {
+	r.id = newId
 }
 
-func (r Room) Name() string {
+func (r *Room) Name() string {
 	return r.name
 }
 
-func (r Room) printDirections() string {
+func (r Room) PrintDirections() string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Brown)
-	if len(r.exits) == 0 {
+	if len(r.Exits) == 0 {
 		buffer.WriteString("You see no exits.")
 	} else {
 		buffer.WriteString("You see exits leading ")
 		writeComma := false
 		/// @todo print "and" before the last direction."
 		/// @todo print "a single exit" for single exit Rooms
-		for d := range r.exits {
+		for d := range r.Exits {
 			if writeComma {
 				buffer.WriteString(", ")
 			}
@@ -64,8 +55,8 @@ func (r Room) Print(world *metaManager, playerName string) string {
 	buffer.WriteString(r.name)
 	buffer.WriteString("\r\n")
 	buffer.WriteString(Green)
-	if r.description != "" {
-		buffer.WriteString(r.description)
+	if r.Description != "" {
+		buffer.WriteString(r.Description)
 	} else {
 		const noDescriptionString = "The Room seems to shimmer, as though it might fade from existence."
 		buffer.WriteString(noDescriptionString)
@@ -73,7 +64,7 @@ func (r Room) Print(world *metaManager, playerName string) string {
 	buffer.WriteString("\r\n")
 	buffer.WriteString(r.printItems(world))
 	buffer.WriteString(r.printPlayers(world, playerName))
-	buffer.WriteString(r.printDirections())
+	buffer.WriteString(r.PrintDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
@@ -86,7 +77,7 @@ func (r Room) PrintBrief(world *metaManager, playerName string) string {
 	buffer.WriteString("\r\n")
 	buffer.WriteString(r.printItems(world))
 	buffer.WriteString(r.printPlayers(world, playerName))
-	buffer.WriteString(r.printDirections())
+	buffer.WriteString(r.PrintDirections())
 	buffer.WriteString(Reset)
 	return buffer.String()
 }
@@ -95,12 +86,15 @@ func (r Room) printItems(world *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
-	items := world.itemLocations.locationItems(identifier(r.id), ilRoom)
+	var items []identifier
+	for id, _ := range r.Items {
+		items = append(items, id)
+	}
 	if len(items) == 0 {
 		return ""
 	}
 	if len(items) == 1 {
-		it, exists := world.items.getItem(items[0])
+		it, exists := world.items.GetById(items[0])
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 			return ""
@@ -111,13 +105,13 @@ func (r Room) printItems(world *metaManager) string {
 		return buffer.String()
 	}
 	if len(items) == 2 {
-		if itemFirst, exists := world.items.getItem(items[0]); !exists {
+		if itemFirst, exists := world.items.GetById(items[0]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
 		} else {
 			buffer.WriteString(itemFirst.Brief())
 			buffer.WriteString(" and ")
 		}
-		if itemSecond, exists := world.items.getItem(items[1]); !exists {
+		if itemSecond, exists := world.items.GetById(items[1]); !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + items[1].String() + "'")
 			buffer.WriteString("your shadow") // see what I did there?
 		} else {
@@ -130,7 +124,7 @@ func (r Room) printItems(world *metaManager) string {
 	lastItemId := items[len(items)-1]
 	items = items[0 : len(items)-1]
 	for _, itemId := range items {
-		it, exists := world.items.getItem(itemId)
+		it, exists := world.items.GetById(itemId)
 		if !exists {
 			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
 		}
@@ -139,7 +133,7 @@ func (r Room) printItems(world *metaManager) string {
 	}
 
 	buffer.WriteString("and ")
-	lastItem, exists := world.items.getItem(lastItemId)
+	lastItem, exists := world.items.GetById(lastItemId)
 	if !exists {
 		fmt.Println("items got nonexistent item from itemLocationManager '" + lastItemId.String() + "'")
 		buffer.WriteString("your shadow") // see what I did there?
@@ -151,18 +145,27 @@ func (r Room) printItems(world *metaManager) string {
 	return buffer.String()
 }
 
-func (r Room) printPlayers(world *metaManager, currentPlayer string) string {
+func (r Room) printPlayers(world *metaManager, currentPlayerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Darkcyan)
 
-	players := world.playerLocations.roomPlayers(r.id)
-	for i, player := range players {
-		if player == currentPlayer {
-			players = append(players[:i], players[i+1:]...)
-			break
-		}
+	currentPlayer, ok := world.players.GetByName(currentPlayerName)
+	if !ok {
+		fmt.Println("Room.printPlayers failed '" + r.id.String() + "'")
+		return ""
 	}
+	var players []string
+	for playerId, _ := range r.Players {
+		if playerId == currentPlayer.Id() {
+			continue
+		}
+		player, ok := world.players.GetById(playerId)
+		if !ok {
+			continue
+		}
+		players = append(players, player.Name())
 
+	}
 	if len(players) == 0 {
 		return ""
 	}
@@ -195,131 +198,81 @@ func (r Room) printPlayers(world *metaManager, currentPlayer string) string {
 }
 
 /// @todo ? make this a member of roomManager
-func (r *Room) NewRoom(manager *roomManager, d Direction, newName string, newDesc string) {
+func (r *Room) NewRoom(manager *RoomManager, d Direction, newName string, newDesc string) {
 	newRoom := Room{
 		name:        newName,
-		description: newDesc,
-		exits:       make(map[Direction]roomIdentifier),
+		Description: newDesc,
+		Exits:       make(map[Direction]identifier),
+		Players:     make(map[identifier]bool),
+		Items:       make(map[identifier]PlayerItemType),
 	}
-	newRoom.exits[d.reverse()] = r.id
-	newRoomId := manager.createRoom(newRoom)
-	manager.changeRoom(r.id, func(r *Room) {
-		r.exits[d] = newRoomId
+	newRoom.Exits[d.reverse()] = r.id
+	newRoomId := ThingManager(*manager).Add(&newRoom)
+	accessor := ThingManager(*manager).GetThingAccessor(r.Id())
+	ok := accessor.ThingSetter.Set(func(r *Thing) {
+		(*r).(*Room).Exits[d] = newRoomId
 	})
+	if !ok {
+		fmt.Println("Room.NewRoom set failed '" + r.id.String() + "'")
+	}
 }
 
-func (r Room) Write(message string, playerLocations *playerLocationManager, originator string) {
-	players := playerLocations.roomPlayers(r.id)
-	for _, playerId := range players {
-		player, exists := playerLocations.players.getPlayer(playerId)
+func (r Room) Write(message string, playerManager PlayerManager, originator string) {
+	for pid, _ := range r.Players {
+		player, exists := playerManager.GetById(pid)
 		if !exists {
-			fmt.Println("Room.Message got nonexistent player from playerLocations '" + playerId + "'")
+			fmt.Println("Room.Write got nonexistent player '" + pid.String() + "'")
 			continue
 		}
-		if playerId == originator {
+		if player.Name() == originator {
 			continue
 		}
 		player.Write(message)
 	}
 }
 
-type roomManager struct {
-	requestRoomChan chan struct {
-		id       roomIdentifier
-		response chan struct {
-			Room
-			bool
-		}
+type RoomManager ThingManager
+
+/// @todo remove this, after changing things which call it to store Accessors rather than IDs
+/// @todo change this to return an error object with an err string, rather than printing the err and returning bool
+func (m RoomManager) GetById(id identifier) (*Room, bool) {
+	accessor := ThingManager(m).GetThingAccessor(id)
+	if accessor.ThingGetter == nil {
+		fmt.Println("RoomManager.GetById error: ThingGetter nil " + id.String())
+		return &Room{}, false
 	}
-	RoomChangeChan chan struct {
-		id     roomIdentifier
-		modify func(*Room)
+	thing, ok := <-accessor.ThingGetter
+	if !ok {
+		fmt.Println("RoomManager.GetById error: room ThingGetter closed " + id.String())
+		return &Room{}, false
 	}
-	RoomCreateChan chan struct {
-		newRoom  Room
-		response chan roomIdentifier
+	room, ok := thing.(*Room)
+	if !ok {
+		fmt.Println("RoomManager.GetById error: room accessor returned non-room " + id.String())
+		return &Room{}, false
 	}
+	return room, ok
 }
 
-func (m roomManager) getRoom(Roomid roomIdentifier) (newRoom Room, exists bool) {
-	responseChan := make(chan struct {
-		Room
-		bool
-	})
-	m.requestRoomChan <- struct {
-		id       roomIdentifier
-		response chan struct {
-			Room
-			bool
-		}
-	}{Roomid, responseChan}
-	response := <-responseChan
-	return response.Room, response.bool
-}
-
-func (m roomManager) createRoom(r Room) roomIdentifier {
-	responseChan := make(chan roomIdentifier)
-	m.RoomCreateChan <- struct {
-		newRoom  Room
-		response chan roomIdentifier
-	}{r, responseChan}
-	newRoomId := <-responseChan
-	return newRoomId
-}
-
-/// callers should be aware this is asynchronous - the Room is not necessarily changed immediately upon return
-/// anything in modify besides modifying the Room MUST be called in a goroutine. Else, deadlock.
-func (m roomManager) changeRoom(id roomIdentifier, modify func(*Room)) {
-	m.RoomChangeChan <- struct {
-		id     roomIdentifier
-		modify func(*Room)
-	}{id, modify}
-}
-
-func newRoomManager() *roomManager {
-	roomManager := &roomManager{requestRoomChan: make(chan struct {
-		id       roomIdentifier
-		response chan struct {
-			Room
-			bool
-		}
-	}), RoomChangeChan: make(chan struct {
-		id     roomIdentifier
-		modify func(*Room)
-	}), RoomCreateChan: make(chan struct {
-		newRoom  Room
-		response chan roomIdentifier
-	})}
-	go manageRooms(roomManager)
-	return roomManager
-}
-
-func manageRooms(manager *roomManager) {
-	var Rooms = map[roomIdentifier]*Room{}
-	for {
-		select {
-		case r := <-manager.requestRoomChan:
-			rRoom, exists := Rooms[r.id]
-			var RoomCopy Room
-			if exists {
-				RoomCopy = *rRoom
-			} else {
-				RoomCopy = Room{id: -1}
-			}
-			r.response <- struct {
-				Room
-				bool
-			}{RoomCopy, exists}
-		case m := <-manager.RoomChangeChan:
-			cRoom, exists := Rooms[m.id]
-			if !exists {
-				continue
-			}
-			m.modify(cRoom)
-		case n := <-manager.RoomCreateChan:
-			n.newRoom.id = roomIdentifier(len(Rooms))
-			Rooms[n.newRoom.id] = &n.newRoom
-			n.response <- n.newRoom.id
-		}
+/// @todo change this to return an error object with an err string, rather than printing the err and returning bool
+func (m RoomManager) ChangeById(id identifier, modify func(r *Room)) bool {
+	accessor := ThingManager(m).GetThingAccessor(id)
+	if accessor.ThingGetter == nil {
+		fmt.Println("RoomManager.ChangeById error: ThingGetter nil " + id.String())
+		return false
 	}
+	setMsg, ok := <-accessor.ThingSetter
+	if !ok {
+		fmt.Println("RoomManager.ChangeById error: room ThingGetter closed " + id.String())
+		return false
+	}
+	setMsg.chainTime <- NotChaining
+	room, ok := setMsg.it.(*Room)
+	if !ok {
+		fmt.Println("RoomManager.ChangeById error: room accessor returned non-room " + id.String())
+		return false
+	}
+	modify(room)
+	setMsg.set <- room
+	return true
 }

@@ -52,27 +52,32 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 	h.Write(saltedPass)
 	hashedPass := h.Sum(nil)
 
-	world.players.createPlayer(player_state{
+	roomId := identifier(0)
+	newPlayer := Player{
 		name:        playerName,
 		pass:        hashedPass,
 		passthesalt: salt,
 		connection:  c,
 		level:       1,
+		Room:        roomId,
+		Items:       make(map[identifier]PlayerItemType),
+	}
+	newPlayerId := ThingManager(*world.players).Add(&newPlayer)
+	world.rooms.ChangeById(roomId, func(r *Room) {
+		r.Players[newPlayerId] = true
 	})
-	world.playerLocations.addPlayer(playerName, roomIdentifier(0))
-	player, exists := world.players.getPlayer(playerName)
+	fmt.Println("Debug: " + playerName + " id: " + newPlayerId.String())
+	_, exists := world.players.GetByName(playerName)
 	if !exists {
 		fmt.Println("handleCreatingPlayerPassVerify error: newly created player does not exist: " + playerName)
 		c.Close()
 		return
 	}
-	world.players.changePlayer(player.Name(), func(p *player_state) {
-		p.connection = c
+	world.players.ChangeById(newPlayerId, func(p *Player) {
 		p.health = p.MaxHealth()
 		p.mana = p.MaxMana()
 	})
-	go handlePlayer(world, player.Id())
-	return
+	go handlePlayer(world, newPlayerId)
 }
 
 func handleCreatingPlayerPass(world metaManager, c net.Conn, player string) {
@@ -110,7 +115,7 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 	if err != nil {
 		return
 	}
-	player, exists := world.players.getPlayer(playerName)
+	player, exists := world.players.GetByName(playerName)
 	if !exists {
 		return // we just validated the player exists, so this shouldn't happen
 	}
@@ -130,7 +135,7 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 		c.Close()
 		return
 	}
-	world.players.changePlayer(player.Name(), func(p *player_state) {
+	world.players.ChangeById(player.Id(), func(p *Player) {
 		p.connection = c
 	})
 	go handlePlayer(world, player.Id())
@@ -156,20 +161,19 @@ func handleLogin(world metaManager, c net.Conn) {
 		}
 
 		// if the current player doesn't exist, assume the sent text is the player name
-		_, playerExists := world.players.getPlayer(player)
+		_, playerExists := world.players.GetByName(player)
 		if !playerExists { // player wasn't found
 			go handleCreatingPlayer(world, c, player)
 			return
 		}
 		go handleLoginPass(world, c, player)
-		return
+		break
 	}
-
 }
 
 // this handles connections for a logged-in player
 func handlePlayer(world metaManager, playerId identifier) {
-	player, exists := world.players.getPlayerById(playerId)
+	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("handlePlayer error: player not found " + playerId.String())
 		return
