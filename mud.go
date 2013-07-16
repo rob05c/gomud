@@ -53,7 +53,7 @@ func NewWorld() *metaManager {
 		id := identifier(0)
 		for {
 			NextId <- id
-			fmt.Println("debug: id provided " + id.String())
+			//			fmt.Println("debug: id provided " + id.String())
 			id++
 		}
 	}()
@@ -81,7 +81,7 @@ func NewWorld() *metaManager {
 		Items:       make(map[identifier]PlayerItemType),
 	})
 
-	//	world.script = initializeV8(world) // @todo fix this
+	world.script = initializeV8(world) // @todo fix this
 	return world
 }
 
@@ -148,10 +148,7 @@ func debug() {
 
 func main() {
 	world := NewWorld()
-
-	//	world.script.Eval("mud_println('javascript engine functioning');")
-
-	//	world.script.Eval("window.setInterval(mud_println('Tick'), 100);")
+	world.script.Eval("mud_println('javascript engine running');")
 	fmt.Println("version " + version)
 	listen(*world)
 }

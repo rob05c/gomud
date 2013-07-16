@@ -66,7 +66,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 	world.rooms.ChangeById(roomId, func(r *Room) {
 		r.Players[newPlayerId] = true
 	})
-	fmt.Println("Debug: " + playerName + " id: " + newPlayerId.String())
+	//	fmt.Println("Debug: " + playerName + " id: " + newPlayerId.String())
 	_, exists := world.players.GetByName(playerName)
 	if !exists {
 		fmt.Println("handleCreatingPlayerPassVerify error: newly created player does not exist: " + playerName)
