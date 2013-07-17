@@ -774,12 +774,12 @@ func help(playerId identifier, world *metaManager) {
 		"makeRoom	mr	makeRoom direction title\r\n" +
 		"connectRoom	cr	connectRoom direction RoomId\r\n" +
 		"describeRoom	dr	describeRoom description\r\n" +
-		"Roomid			Roomid\r\n" +
+		"roomid			roomid\r\n" +
 		"createitem	ci	creatitem name\r\n" +
 		"createnpc	cn	createnpc name\r\n" +
 		"describeitem	di	describeitem itemId description\r\n" +
 		"describenpc	dn	describenpc npcId description\r\n" +
-		"animate		an	animate npcId script\r\n" +
+		"animate	an	animate npcId script\r\n" +
 		"get		g	get itemId/itemName\r\n" +
 		"drop			drop itemId/itemName\r\n" +
 		"items		ii	items\r\n" +
