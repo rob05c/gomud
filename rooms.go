@@ -86,60 +86,52 @@ func (r Room) printItems(world *metaManager) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
-	var items []identifier
-	for id, _ := range r.Items {
-		items = append(items, id)
+	var items []string
+	for id, itemType := range r.Items {
+		switch itemType {
+		case piItem:
+			it, exists := world.items.GetById(id)
+			if !exists {
+				continue
+			}
+			items = append(items, it.Brief())
+		case piNpc:
+			it, exists := world.npcs.GetById(id)
+			if !exists {
+				continue
+			}
+			items = append(items, it.Brief)
+		default:
+			fmt.Println("room.printItems got invalid item type  '" + id.String() + "'")
+			continue
+		}
 	}
 	if len(items) == 0 {
 		return ""
 	}
 	if len(items) == 1 {
-		it, exists := world.items.GetById(items[0])
-		if !exists {
-			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
-			return ""
-		}
-		buffer.WriteString(it.Brief())
+		buffer.WriteString(items[0])
 		buffer.WriteString(" here.\r\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
 	if len(items) == 2 {
-		if itemFirst, exists := world.items.GetById(items[0]); !exists {
-			fmt.Println("items got nonexistent item from itemLocationManager '" + items[0].String() + "'")
-		} else {
-			buffer.WriteString(itemFirst.Brief())
-			buffer.WriteString(" and ")
-		}
-		if itemSecond, exists := world.items.GetById(items[1]); !exists {
-			fmt.Println("items got nonexistent item from itemLocationManager '" + items[1].String() + "'")
-			buffer.WriteString("your shadow") // see what I did there?
-		} else {
-			buffer.WriteString(itemSecond.Brief())
-		}
+		buffer.WriteString(items[0])
+		buffer.WriteString(" and ")
+		buffer.WriteString(items[1])
 		buffer.WriteString(" here.\r\n")
 		buffer.WriteString(Reset)
 		return buffer.String()
 	}
-	lastItemId := items[len(items)-1]
+	lastItem := items[len(items)-1]
 	items = items[0 : len(items)-1]
-	for _, itemId := range items {
-		it, exists := world.items.GetById(itemId)
-		if !exists {
-			fmt.Println("items got nonexistent item from itemLocationManager '" + itemId.String() + "'")
-		}
-		buffer.WriteString(it.Brief())
+	for _, item := range items {
+		buffer.WriteString(item)
 		buffer.WriteString(", ")
 	}
 
 	buffer.WriteString("and ")
-	lastItem, exists := world.items.GetById(lastItemId)
-	if !exists {
-		fmt.Println("items got nonexistent item from itemLocationManager '" + lastItemId.String() + "'")
-		buffer.WriteString("your shadow") // see what I did there?
-	} else {
-		buffer.WriteString(lastItem.Brief())
-	}
+	buffer.WriteString(lastItem)
 	buffer.WriteString(" here.\r\n")
 	buffer.WriteString(Reset)
 	return buffer.String()

@@ -396,6 +396,8 @@ func describeItem(args []string, playerId identifier, world *metaManager) {
 }
 
 func get(args []string, playerId identifier, world *metaManager) bool {
+	const notHereMsg = "That is not here."
+	const cantGetMsg = "You can't pick that up."
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "What do you want to get?", "get called with invalid params")
 		return false
@@ -430,21 +432,27 @@ func get(args []string, playerId identifier, world *metaManager) bool {
 		sets = append(sets, roomSet)
 
 		itemInt, err := strconv.Atoi(args[0])
+		room := roomSet.it.(*Room)
 		if err == nil {
 			itemId := identifier(itemInt)
-			itemType, ok := roomSet.it.(*Room).Items[itemId]
+			itemType, ok := room.Items[itemId]
 			if !ok {
-				tryPlayerWrite(playerId, world.players, "That is not here.", "get called with invalid id")
+				tryPlayerWrite(playerId, world.players, notHereMsg, "get called with invalid id")
 				ReleaseThings(sets)
 				return false
 			} else if itemType != piItem {
-				tryPlayerWrite(playerId, world.players, "You can't pick that up.", "get called with nonitem")
+				tryPlayerWrite(playerId, world.players, cantGetMsg, "get called with nonitem")
 				ReleaseThings(sets)
 				return false
 			}
 		} else {
 			found := false
-			for itemId, itemType := range roomSet.it.(*Room).Items {
+			npcFound := false
+			for itemId, itemType := range room.Items {
+				if npcFound == false && itemType == piNpc {
+					_, npcFound = world.npcs.GetById(itemId)
+					continue
+				}
 				if itemType != piItem {
 					continue
 				} else if it, exists := world.items.GetById(itemId); !exists {
@@ -457,7 +465,11 @@ func get(args []string, playerId identifier, world *metaManager) bool {
 				}
 			}
 			if !found {
-				tryPlayerWrite(playerId, world.players, "That is not here.", "get player failed to write")
+				if npcFound {
+					tryPlayerWrite(playerId, world.players, cantGetMsg, "get player failed to write")
+				} else {
+					tryPlayerWrite(playerId, world.players, notHereMsg, "get player failed to write")
+				}
 				ReleaseThings(sets)
 				return false
 			}
@@ -466,7 +478,7 @@ func get(args []string, playerId identifier, world *metaManager) bool {
 		itemAccessor := ThingManager(*world.items).GetThingAccessor(identifier(itemInt))
 		itemSet, ok, resetChain := itemAccessor.TryGet(chainTime)
 		if !ok {
-			tryPlayerWrite(playerId, world.players, "That is not here.", "get error: item chan closed")
+			tryPlayerWrite(playerId, world.players, notHereMsg, "get error: item chan closed")
 			ReleaseThings(sets)
 			return false
 		} else if resetChain {
@@ -476,7 +488,6 @@ func get(args []string, playerId identifier, world *metaManager) bool {
 		sets = append(sets, itemSet)
 
 		itemId := identifier(itemInt)
-		room := roomSet.it.(*Room)
 		item := itemSet.it.(*Item)
 		delete(room.Items, itemId)
 		player.Items[itemId] = piItem
@@ -509,7 +520,8 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 			continue
 		}
 		sets = append(sets, playerSet)
-		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
+		player := playerSet.it.(*Player)
+		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(player.Room)
 		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
 		if !ok {
 			fmt.Println("drop error: room chan closed " + playerId.String())
@@ -521,19 +533,33 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 		}
 		sets = append(sets, roomSet)
 
+		var dropType PlayerItemType = piItem
 		itemInt, err := strconv.Atoi(args[0])
 		if err == nil {
 			itemId := identifier(itemInt)
-			_, ok := playerSet.it.(*Player).Items[itemId]
+			dropType, ok = player.Items[itemId]
 			if !ok {
 				tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop called with invalid id")
 				ReleaseThings(sets)
 				return false
 			}
+
 		} else {
 			found := false
-			for itemId, _ := range playerSet.it.(*Player).Items {
-				if it, exists := world.items.GetById(itemId); !exists {
+			for itemId, _ := range player.Items {
+				var it Thing
+				item, exists := world.items.GetById(itemId)
+				if !exists {
+					npc, npcExists := world.npcs.GetById(itemId)
+					if npcExists {
+						exists = true
+						dropType = piNpc
+						it = Thing(npc)
+					}
+				} else {
+					it = Thing(item)
+				}
+				if !exists {
 					fmt.Println("drop got nonexistent item in player '" + itemId.String() + "'")
 					continue
 				} else if it.Name() == args[0] {
@@ -549,7 +575,12 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 			}
 		}
 
-		itemAccessor := ThingManager(*world.items).GetThingAccessor(identifier(itemInt))
+		var itemAccessor ThingAccessor
+		if dropType == piItem {
+			itemAccessor = ThingManager(*world.items).GetThingAccessor(identifier(itemInt))
+		} else {
+			itemAccessor = ThingManager(*world.npcs).GetThingAccessor(identifier(itemInt))
+		}
 		itemSet, ok, resetChain := itemAccessor.TryGet(chainTime)
 		if !ok {
 			tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop error: item chan closed")
@@ -562,16 +593,25 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 		sets = append(sets, itemSet)
 
 		itemId := identifier(itemInt)
-		player := playerSet.it.(*Player)
 		room := roomSet.it.(*Room)
-		item := itemSet.it.(*Item)
-		itemType := player.Items[itemId]
 		delete(player.Items, itemId)
-		room.Items[itemId] = itemType
-		item.Location = player.Id()
-		itemSet.it = item
-		player.Write("You drop " + item.Brief())
-		room.Write(ToProper(player.Name())+" drops "+item.Brief(), *world.players, player.Name())
+		room.Items[itemId] = dropType
+		var itemBrief string
+		if dropType == piItem {
+			item := itemSet.it.(*Item)
+			item.Location = player.Id()
+			item.LocationType = ilPlayer
+			itemSet.it = item
+			itemBrief = item.Brief()
+		} else {
+			npc := itemSet.it.(*Npc)
+			npc.Location = player.Id()
+			npc.LocationType = ilPlayer
+			itemSet.it = npc
+			itemBrief = npc.Brief
+		}
+		player.Write("You drop " + itemBrief)
+		room.Write(ToProper(player.Name())+" drops "+itemBrief, *world.players, player.Name())
 		ReleaseThings(sets)
 		break
 	}
@@ -639,15 +679,21 @@ func itemsHere(args []string, playerId identifier, world *metaManager) {
 
 		itemString := ""
 		for itemId, itemType := range roomSet.it.(*Room).Items {
-			if itemType != piItem {
+			var manager ThingManager
+			switch itemType {
+			case piItem:
+				manager = ThingManager(*world.items)
+			case piNpc:
+				manager = ThingManager(*world.npcs)
+			default:
+				fmt.Println("Items got invalid item type  '" + playerId.String() + "'")
 				continue
 			}
-			it, exists := world.items.GetById(itemId)
+			it, exists := manager.GetById(itemId)
 			if !exists {
-				fmt.Println("Items got invalid item  '" + playerId.String() + "'")
 				continue
 			}
-			itemString += it.Id().String() + it.Name() + "\r\n"
+			itemString += itemId.String() + it.Name() + "\r\n"
 		}
 		if len(itemString) > 0 {
 			playerSet.it.(*Player).Write(itemString[:len(itemString)-2])
@@ -662,16 +708,25 @@ func itemsHere(args []string, playerId identifier, world *metaManager) {
 func inventory(args []string, playerId identifier, world *metaManager) {
 	world.players.ChangeById(playerId, func(player *Player) {
 		s := "You are carrying "
-		var items []*Item
+		var items []string
 		for itemId, itemType := range player.Items {
-			if itemType != piItem {
+			switch itemType {
+			case piItem:
+				it, exists := world.items.GetById(itemId)
+				if !exists {
+					continue
+				}
+				items = append(items, it.Brief())
+			case piNpc:
+				it, exists := world.npcs.GetById(itemId)
+				if !exists {
+					continue
+				}
+				items = append(items, it.Brief)
+			default:
+				fmt.Println("Items got invalid item type  '" + playerId.String() + "'")
 				continue
 			}
-			item, exists := world.items.GetById(itemId)
-			if !exists {
-				continue
-			}
-			items = append(items, item)
 		}
 		if len(items) == 0 {
 			s += "nothing."
@@ -679,16 +734,15 @@ func inventory(args []string, playerId identifier, world *metaManager) {
 			return
 		}
 		if len(items) == 1 {
-			it := items[0]
-			s += it.Brief()
+			s += items[0]
 			s += "."
 			player.Write(s)
 			return
 		}
 		if len(items) == 2 {
-			s += items[0].Brief()
+			s += items[0]
 			s += ", "
-			s += items[1].Brief()
+			s += items[1]
 			s += "."
 			player.Write(s)
 			return
@@ -697,9 +751,9 @@ func inventory(args []string, playerId identifier, world *metaManager) {
 		lastItem := items[len(items)-1]
 		items = items[:len(items)-1]
 		for _, item := range items {
-			s += item.Brief() + ", "
+			s += item + ", "
 		}
-		s += lastItem.Brief()
+		s += lastItem
 		s += "."
 		player.Write(s)
 	})
