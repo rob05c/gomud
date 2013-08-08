@@ -599,14 +599,14 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 		var itemBrief string
 		if dropType == piItem {
 			item := itemSet.it.(*Item)
-			item.Location = player.Id()
-			item.LocationType = ilPlayer
+			item.Location = room.Id()
+			item.LocationType = ilRoom
 			itemSet.it = item
 			itemBrief = item.Brief()
 		} else {
 			npc := itemSet.it.(*Npc)
-			npc.Location = player.Id()
-			npc.LocationType = ilPlayer
+			npc.Location = room.Id()
+			npc.LocationType = ilRoom
 			itemSet.it = npc
 			itemBrief = npc.Brief
 		}
