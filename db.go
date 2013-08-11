@@ -271,8 +271,19 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 			player := t.(*Player)
 			addStmt.Exec(player.id, player.name, string(player.passthesalt), string(player.pass), player.level, player.health, player.mana, player.Room)
 		case t := <- saver.change:
+			fmt.Println("saving player")
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				panic(err) // debug
+				return
+			}
+
 			player := t.(*Player)
-			changeStmt.Exec(player.name, player.passthesalt, player.pass, player.level, player.health, player.mana, player.Room, player.id)
+			txChange := tx.Stmt(changeStmt)
+			txChange.Exec(player.name, player.passthesalt, player.pass, player.level, player.health, player.mana, player.Room, player.id)
+			doCommit <- tx
+			fmt.Println("saved player")
 		case id := <- saver.del:
 			delStmt.Exec(id)
 		}
@@ -295,13 +306,12 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 		fmt.Println(err)
 		return
 	}
-
-	addExitsStmt, err := db.Prepare(`insert into room_exits (id, link, direction) values (?,?,?);`)
+	delExitsStmt, err := db.Prepare(`delete from room_exits where id = ?;`)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	delExitsStmt, err := db.Prepare(`delete from room_exits where id = ?;`)
+	addExitsStmt, err := db.Prepare(`insert into room_exits (id, link, direction) values (?,?,?);`)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -316,12 +326,26 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 				addExitsStmt.Exec(room.id, link, dir)
 			}
 		case t := <- saver.change:
-			room := t.(*Room)
-			changeStmt.Exec(room.name, room.Description, room.id)
-			delExitsStmt.Exec(room.id) /// @todo delete and recreate exits atomically
-			for dir, link := range room.Exits {
-				addExitsStmt.Exec(room.id, link, dir)
+			fmt.Println("saving room")
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				panic(err) // debug
+				return
 			}
+			txChange := tx.Stmt(changeStmt)
+			txAddExits := tx.Stmt(addExitsStmt)
+			txDelExits := tx.Stmt(delExitsStmt)
+			room := t.(*Room)
+
+			txChange.Exec(room.name, room.Description, room.id)
+			txDelExits.Exec(room.id) /// @todo delete and recreate exits atomically
+			for dir, link := range room.Exits {
+				txAddExits.Exec(room.id, link, dir)
+			}
+			doCommit <- tx
+
+			fmt.Println("saved room")
 		case id := <- saver.del:
 			delStmt.Exec(id)
 			delExitsStmt.Exec(id)
@@ -329,11 +353,11 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 	}
 }
 
-func tryLoadPlayer(world *metaManager) bool {
+func tryLoadPlayer(name string, world *metaManager) bool {
 	if world.db == nil {
 		return false
 	}
-	rows, err := world.db.Query(`select id, name, salt, pass, level, health, mana, room_id from players;`)
+	rows, err := world.db.Query(`select id, salt, pass, level, health, mana, room_id from players where name = '` + name + `';`)
 	if err != nil {
 		fmt.Print("dberr tryLoadPlayer ")
 		fmt.Println(err)
@@ -344,15 +368,22 @@ func tryLoadPlayer(world *metaManager) bool {
 		return false
 	}
 	player := Player{
+		name: name,
 		Items: make(map[identifier]PlayerItemType),
 	}
-	rows.Scan(&player.id, &player.name, &player.passthesalt, &player.pass, &player.level, player.health, player.mana, player.Room)
+	rows.Scan(&player.id, &player.passthesalt, &player.pass, &player.level, &player.health, &player.mana, &player.Room)
 
 	itemRows, err := world.db.Query(`select id, name, brief from items where location = ` + player.id.String() + `;`)
 	defer itemRows.Close()
 	for itemRows.Next() {
 		loadItem(itemRows, world)
 	}
+
+	ThingManager(*world.players).DbAdd(&player)
+	world.rooms.ChangeById(player.Room, func(r *Room) {
+		r.Players[player.Id()] = true
+	})
+
 	return true
 }
 
@@ -388,6 +419,20 @@ func setNextId(db *sql.DB) {
 	fmt.Println("current id: " + strconv.Itoa(int(currentId)))
 }
 
+// sqlite commits must be sequential
+var doCommit chan *sql.Tx
+func commitManager() {
+	for {
+		tx := <- doCommit
+		err := tx.Commit()
+		if err != nil {
+			fmt.Print("db commit err: ")
+			fmt.Println(err)
+			panic(err) // debug
+		}
+	}
+}
+
 func initDb(world *metaManager) {
 	db, err := sql.Open("sqlite3", "./gomud.sqlite")
 	if err != nil {
@@ -397,11 +442,13 @@ func initDb(world *metaManager) {
 	}
 	checkSchema(db)
 
+	doCommit = make(chan *sql.Tx, 1000)
 	loadRooms(db, *world.rooms)
 	loadNpcs(db, world)
 	loadItems(db, world)
 	setNextId(db)
 
+	go commitManager()
 	go roomSaver(db, *world.rooms)
 	go itemSaver(db, *world.items)
 	go npcSaver(db, *world.npcs)

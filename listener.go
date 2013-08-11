@@ -162,8 +162,8 @@ func handleLogin(world metaManager, c net.Conn) {
 
 		// if the current player doesn't exist, assume the sent text is the player name
 		_, playerExists := world.players.GetByName(player)
-		if !playerExists { // player wasn't found
-			go handleCreatingPlayer(world, c, player)
+		if !playerExists && !tryLoadPlayer(player, &world) {
+			handleCreatingPlayer(world, c, player)
 			return
 		}
 		go handleLoginPass(world, c, player)
