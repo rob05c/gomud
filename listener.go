@@ -255,7 +255,7 @@ func getBytesSecure(c net.Conn) ([]byte, error) {
 // it also processes any Telnet commands it happens to read
 func getString(c net.Conn) (string, error) {
 	//debug
-	fi, _ := os.Create("rec")
+	fi, _ := os.Create("log")
 	defer fi.Close()
 
 	readBuf := make([]byte, 8)
