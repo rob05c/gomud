@@ -86,13 +86,21 @@ type ThingAdderMsg struct {
 	response chan identifier
 }
 
+type ThingSaver struct {
+	add    chan Thing
+	del    chan identifier
+	change chan Thing
+}
+
 type ThingManager struct {
 	getGetter         chan GetGetterMsg
 	getSetter         chan GetSetterMsg
 	getAccessor       chan GetAccessorMsg
 	getAccessorByName chan GetAccessorByNameMsg
 	add               chan ThingAdderMsg
+	dbAdd             chan Thing
 	del               chan identifier
+	saver             ThingSaver
 }
 
 func (m ThingManager) GetThingAccessor(id identifier) ThingAccessor {
@@ -123,6 +131,10 @@ func (m ThingManager) Add(t Thing) identifier {
 	response := make(chan identifier)
 	m.add <- ThingAdderMsg{t, response}
 	return <-response
+}
+
+func (m ThingManager) DbAdd(t Thing) {
+	m.dbAdd <- t
 }
 
 func (m ThingManager) Remove(id identifier) {
@@ -180,7 +192,13 @@ func NewThingManager() *ThingManager {
 		getAccessor:       make(chan GetAccessorMsg),
 		getAccessorByName: make(chan GetAccessorByNameMsg),
 		add:               make(chan ThingAdderMsg),
+		dbAdd:             make(chan Thing),
 		del:               make(chan identifier),
+		saver: ThingSaver{
+			add:    make(chan Thing, 1000),
+			del:    make(chan identifier, 1000),
+			change: make(chan Thing, 1000),
+		},
 	}
 	go func() {
 		type thingAccessors struct {
@@ -193,58 +211,74 @@ func NewThingManager() *ThingManager {
 		Things := make(map[identifier]thingAccessors)
 		ThingsByName := make(map[string]thingAccessors)
 		ThingNameMap := make(map[identifier]string)
+
+		doAdd := func(thing Thing) {
+			getter := make(chan Thing)
+			setter := make(chan SetterMsg)
+			closer := make(chan bool)
+			setTimeGetter := make(chan ChainTime)
+			thingFunc := func(thing Thing, setting func(thing Thing, thingChan chan Thing, time ChainTime)) {
+				thingChan := make(chan Thing)
+				timeSetter := make(chan ChainTime)
+				for {
+					select {
+					case setter <- SetterMsg{thing, thingChan, timeSetter}:
+//						fmt.Println("locking " + thing.Id().String())
+						time := <-timeSetter
+//						fmt.Println("locked " + thing.Id().String())
+						go setting(thing, thingChan, time)
+						return
+					case getter <- thing:
+					case setTimeGetter <- 0:
+					case <-closer:
+						close(getter)
+						close(setter)
+						return
+
+					}
+				}
+			}
+			var settingFunc func(thing Thing, thingChan chan Thing, time ChainTime)
+			settingFunc = func(thing Thing, thingChan chan Thing, time ChainTime) {
+				for {
+					select {
+					case t := <-thingChan:
+						go thingFunc(t, settingFunc)
+						manager.saver.change <- t
+						it, ok := t.(*Item)
+						if ok {
+							fmt.Println("manager saver.change " + it.Id().String() + " at " + it.Location.String())
+						}
+//						fmt.Println("unlocked " + thing.Id().String())
+						return
+					case getter <- thing:
+					case setTimeGetter <- time:
+					}
+				}
+			}
+			go thingFunc(thing, settingFunc)
+			Things[thing.Id()] = thingAccessors{getter, setter, closer, setTimeGetter}
+			ThingsByName[thing.Name()] = thingAccessors{getter, setter, closer, setTimeGetter}
+			ThingNameMap[thing.Id()] = thing.Name()
+		}
+
 		for {
 			select {
 			case addThing := <-manager.add:
 				addThing.thing.SetId(<-NextId)
-				getter := make(chan Thing)
-				setter := make(chan SetterMsg)
-				closer := make(chan bool)
-				setTimeGetter := make(chan ChainTime)
-				thingFunc := func(thing Thing, setting func(thing Thing, thingChan chan Thing, time ChainTime)) {
-					thingChan := make(chan Thing)
-					timeSetter := make(chan ChainTime)
-					for {
-						select {
-						case setter <- SetterMsg{thing, thingChan, timeSetter}:
-							fmt.Println("locking " + thing.Id().String())
-							time := <-timeSetter
-							fmt.Println("locked " + thing.Id().String())
-							go setting(thing, thingChan, time)
-							return
-						case getter <- thing:
-						case setTimeGetter <- 0:
-						case <-closer:
-							close(getter)
-							close(setter)
-							return
-
-						}
-					}
-				}
-				var settingFunc func(thing Thing, thingChan chan Thing, time ChainTime)
-				settingFunc = func(thing Thing, thingChan chan Thing, time ChainTime) {
-					for {
-						select {
-						case thing = <-thingChan:
-							go thingFunc(thing, settingFunc)
-							fmt.Println("unlocked " + thing.Id().String())
-							return
-						case getter <- thing:
-						case setTimeGetter <- time:
-						}
-					}
-				}
-				go thingFunc(addThing.thing, settingFunc)
-				Things[addThing.thing.Id()] = thingAccessors{getter, setter, closer, setTimeGetter}
-				ThingsByName[addThing.thing.Name()] = thingAccessors{getter, setter, closer, setTimeGetter}
-				ThingNameMap[addThing.thing.Id()] = addThing.thing.Name()
+				doAdd(addThing.thing)
 				addThing.response <- addThing.thing.Id()
+				fmt.Println("debug adding saver thing")
+				manager.saver.add <- addThing.thing
+				fmt.Println("debug added saver thing")
+			case thing := <-manager.dbAdd:
+				doAdd(thing)
 			case d := <-manager.del:
 				Things[d].closer <- true
 				delete(ThingsByName, ThingNameMap[d])
 				delete(Things, d)
 				delete(ThingNameMap, d)
+				manager.saver.del <- d
 			case g := <-manager.getAccessor:
 				g.response <- ThingAccessor{Things[g.id].getter, Things[g.id].setter, Things[g.id].setTimeGetter}
 			case g := <-manager.getAccessorByName:

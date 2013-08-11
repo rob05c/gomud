@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+//	 "runtime/debug"
 )
 
 type PlayerItemType int32
@@ -141,6 +142,7 @@ func (m PlayerManager) ChangeById(id identifier, modify func(p *Player)) bool {
 	accessor := ThingManager(m).GetThingAccessor(id)
 	if accessor.ThingGetter == nil {
 		fmt.Println("PlayerManager.ChangeById error: ThingGetter nil " + id.String())
+//		debug.PrintStack()
 		return false
 	}
 	setMsg, ok := <-accessor.ThingSetter
@@ -162,9 +164,13 @@ func (m PlayerManager) ChangeById(id identifier, modify func(p *Player)) bool {
 /// @todo move this to MetaManager ? Player ? 
 /// @todo change players and rooms to use Accessors rather than IDs; then this won't need the world.
 func (m PlayerManager) Move(player identifier, direction Direction, world *metaManager) bool {
+	fmt.Println("debug 0")
 	chainTime := <-NextChainTime
+	fmt.Println("debug 1")
 	playerAccessor := ThingManager(m).GetThingAccessor(player)
+	fmt.Println("debug 2")
 	for {
+		fmt.Println("debug 3")
 		sets := make([]SetterMsg, 0, 3)
 		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
 		if !ok {
@@ -174,6 +180,7 @@ func (m PlayerManager) Move(player identifier, direction Direction, world *metaM
 			continue
 		}
 		sets = append(sets, playerSet)
+		fmt.Println("debug 4")
 		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
 		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
 		if !ok {
@@ -191,7 +198,7 @@ func (m PlayerManager) Move(player identifier, direction Direction, world *metaM
 			ReleaseThings(sets)
 			return false
 		}
-
+		fmt.Println("debug 5")
 		newRoomAccessor := ThingManager(*world.rooms).GetThingAccessor(newRoomId)
 		newRoomSet, ok, resetChain := newRoomAccessor.TryGet(chainTime)
 		if !ok {
@@ -203,12 +210,14 @@ func (m PlayerManager) Move(player identifier, direction Direction, world *metaM
 			continue
 		}
 		sets = append(sets, newRoomSet)
+		fmt.Println("debug 6")
 		player := playerSet.it.(*Player)
 		room := roomSet.it.(*Room)
 		newRoom := newRoomSet.it.(*Room)
 		player.Room = newRoomId
 		delete(room.Players, player.Id())
 		newRoom.Players[player.Id()] = true
+		fmt.Println("debug 7")
 		player.Write("You move out to the " + direction.String() + ".")
 		room.Write(ToProper(player.Name())+" moves out to the "+direction.String()+".", *world.players, player.Name())
 		newRoom.Write(ToProper(player.Name())+" enters from the "+direction.reverse().String()+".", *world.players, player.Name())

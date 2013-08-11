@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"github.com/mattn/go-v8"
 	"strconv"
+	"database/sql"
 )
 
-const version = `0.0.3`
+const version = `0.0.4`
 const defaultPort = 9241
 
 type identifier int32
@@ -25,6 +26,7 @@ type metaManager struct {
 	items   *ItemManager
 	npcs    *NpcManager
 	script  *v8.V8Context
+	db      *sql.DB
 }
 
 type ChainTime uint64
@@ -37,6 +39,7 @@ var NextChainTime chan ChainTime // @todo make local, and passed to ThingManager
 const NotChaining = ChainTime(0)
 
 var NextId chan identifier // @todo make local, and passed to ThingManagers, which make it accessible
+var CurrentId chan identifier
 
 func NewWorld() *metaManager {
 	go func() {
@@ -50,11 +53,15 @@ func NewWorld() *metaManager {
 
 	go func() {
 		NextId = make(chan identifier)
+		CurrentId = make(chan identifier)
 		id := identifier(0)
 		for {
-			NextId <- id
-			//			fmt.Println("debug: id provided " + id.String())
-			id++
+			select {
+			case NextId <- id:
+				//fmt.Println("debug: id provided " + id.String())
+				id++
+			case CurrentId <- id:
+			}
 		}
 	}()
 
@@ -71,17 +78,23 @@ func NewWorld() *metaManager {
 		items:   &im,
 		script:  nil,
 	}
-
-	ThingManager(*world.rooms).Add(&Room{
-		id:          identifier(0),
-		name:        "The Beginning",
-		Description: "Everything has a beginning. This is only one of many beginnings you will soon find as I continue typing in order to create a wall of text to test this. It's a very long sentence that precedes this slightly shorter one. Blarglblargl.",
-		Exits:       make(map[Direction]identifier),
-		Players:     make(map[identifier]bool),
-		Items:       make(map[identifier]PlayerItemType),
-	})
-
 	world.script = initializeV8(world) // @todo fix this
+	initDb(world)
+
+	_, exists := RoomManager(*world.rooms).GetById(0)
+	if !exists {
+		fmt.Println("Creating initial room")
+		ThingManager(*world.rooms).Add(&Room{
+			id:          identifier(0),
+			name:        "The Beginning",
+			Description: "Everything has a beginning. This is only one of many beginnings you will soon find as I continue typing in order to create a wall of text to test this. It's a very long sentence that precedes this slightly shorter one. Blarglblargl.",
+			Exits:       make(map[Direction]identifier),
+			Players:     make(map[identifier]bool),
+			Items:       make(map[identifier]PlayerItemType),
+		})
+	}
+
+
 	return world
 }
 

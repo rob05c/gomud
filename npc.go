@@ -22,8 +22,8 @@ type Npc struct {
 	Sleeping     bool
 	Dna          string
 	Location     identifier
-	LocationType ItemLocationType ///< @todo ? remove this ? it isn't strictly necessary, as we can type assert to find the type
-	Items        map[identifier]bool
+	LocationType ItemLocationType    ///< @todo ? remove this ? it isn't strictly necessary, as we can type assert to find the type
+	Items        map[identifier]bool // true = npc, false = item
 }
 
 func (n *Npc) Id() identifier {
