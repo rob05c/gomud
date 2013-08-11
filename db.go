@@ -159,7 +159,6 @@ func loadItem(rows *sql.Rows, world *metaManager) {
 }
 
 func loadItems(db *sql.DB, world *metaManager) {
-	fmt.Print("loading items...")
 	rows, err := db.Query(`select id, name, brief, location, location_type from items;`)
 	if err != nil {
 		fmt.Print("dberr loadItems ")
@@ -167,9 +166,7 @@ func loadItems(db *sql.DB, world *metaManager) {
 		return
 	}
 	defer rows.Close()
-	fmt.Print("loading items...")
 	for rows.Next() {
-		fmt.Print("loading item")
 		loadItem(rows, world)
 	}
 }
@@ -193,19 +190,20 @@ func itemSaver(db *sql.DB, items ItemManager) {
 		fmt.Println(err)
 		return
 	}
+	saver := ThingManager(items).saver
 	for {
 		select {
-		case t := <- ThingManager(items).saver.add:
+		case t := <- saver.add:
 			fmt.Println("saver item adding")
 			item := t.(*Item)
 			addStmt.Exec(item.id, item.name, item.brief, int(item.Location), int(item.LocationType))
 			fmt.Println("saver item added")
-		case changeThing := <- ThingManager(items).saver.change:
+		case changeThing := <- saver.change:
 			i := changeThing.(*Item)
 			fmt.Println("saver item changing " + i.id.String() + " " + i.Location.String())
 			changeStmt.Exec(i.name, i.brief, int(i.Location), int(i.LocationType), int(i.id))
 			fmt.Println("saver item changed " + i.id.String())
-		case id := <- ThingManager(items).saver.del:
+		case id := <- saver.del:
 			fmt.Println("saver item deleting")
 			delStmt.Exec(id)
 			fmt.Println("saver item deleted")
@@ -233,22 +231,17 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 		fmt.Println(err)
 		return
 	}
+	saver := ThingManager(npcs).saver
 	for {
 		select {
-		case t := <- ThingManager(npcs).saver.add:
-			fmt.Println("saver npc adding")
+		case t := <- saver.add:
 			npc := t.(*Npc)
 			addStmt.Exec(npc.id, npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType)
-			fmt.Println("saver npc added")
-		case t := <- ThingManager(npcs).saver.change:
-			fmt.Println("saver npc changing")
+		case t := <- saver.change:
 			npc := t.(*Npc)
 			changeStmt.Exec(npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType, npc.id)
-			fmt.Println("saver npc changed")
-		case id := <- ThingManager(npcs).saver.del:
-			fmt.Println("saver npc deleting")
+		case id := <- saver.del:
 			delStmt.Exec(id)
-			fmt.Println("saver npc deleted")
 		}
 	}
 }
@@ -256,7 +249,6 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 func playerSaver(db *sql.DB, players PlayerManager) {
 	addStmt, err := db.Prepare(`insert into players (id, name, salt, pass, level, health, mana, room_id) values (?,?,?,?,?,?,?,?);`);
 	if err != nil {
-		fmt.Print("dberr playerSaver 0 ")
 		fmt.Println(err)
 		return
 	}
@@ -272,23 +264,17 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("playerSaver listening...")
+	saver := ThingManager(players).saver
 	for {
 		select {
-		case t := <- ThingManager(players).saver.add:
+		case t := <- saver.add:
 			player := t.(*Player)
-			fmt.Println("saver adding player " + player.name)
 			addStmt.Exec(player.id, player.name, string(player.passthesalt), string(player.pass), player.level, player.health, player.mana, player.Room)
-			fmt.Println("saver added player " + player.name)
-		case t := <- ThingManager(players).saver.change:
-			fmt.Println("saver changing player")
+		case t := <- saver.change:
 			player := t.(*Player)
 			changeStmt.Exec(player.name, player.passthesalt, player.pass, player.level, player.health, player.mana, player.Room, player.id)
-			fmt.Println("saver changed player")
-		case id := <- ThingManager(players).saver.del:
-			fmt.Println("saver deleting player")
+		case id := <- saver.del:
 			delStmt.Exec(id)
-			fmt.Println("saver deleted player")
 		}
 	}
 }
@@ -296,60 +282,49 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 func roomSaver(db *sql.DB, rooms RoomManager) {
 	addStmt, err := db.Prepare(`insert into rooms (id, name, description) values (?,?,?);`)
 	if err != nil {
-		fmt.Print("dberr roomSaver 0 ")
 		fmt.Println(err)
 		return
 	}
 	changeStmt, err := db.Prepare(`update rooms set name = ?, description = ? where id = ?;`)
 	if err != nil {
-		fmt.Print("dberr roomSaver 1 ")
 		fmt.Println(err)
 		return
 	}
 	delStmt, err := db.Prepare(`delete from rooms where id = ?;`);
 	if err != nil {
-		fmt.Print("dberr roomSaver 2 ")
 		fmt.Println(err)
 		return
 	}
 
 	addExitsStmt, err := db.Prepare(`insert into room_exits (id, link, direction) values (?,?,?);`)
 	if err != nil {
-		fmt.Print("dberr roomSaver 3 ")
 		fmt.Println(err)
 		return
 	}
 	delExitsStmt, err := db.Prepare(`delete from room_exits where id = ?;`)
 	if err != nil {
-		fmt.Print("dberr roomSaver 4 ")
 		fmt.Println(err)
 		return
 	}
+	saver := ThingManager(rooms).saver
 	for {
 		select {
-		case t := <- ThingManager(rooms).saver.add:
-			fmt.Println("saver adding room")
+		case t := <- saver.add:
 			room := t.(*Room)
 			addStmt.Exec(room.id, room.name, room.Description)
-			fmt.Println("saver addingg room")
 			for dir, link := range room.Exits {
 				addExitsStmt.Exec(room.id, link, dir)
 			}
-			fmt.Println("saver added room")
-		case t := <- ThingManager(rooms).saver.change:
-			fmt.Println("saver changing room")
+		case t := <- saver.change:
 			room := t.(*Room)
 			changeStmt.Exec(room.name, room.Description, room.id)
 			delExitsStmt.Exec(room.id) /// @todo delete and recreate exits atomically
 			for dir, link := range room.Exits {
 				addExitsStmt.Exec(room.id, link, dir)
 			}
-			fmt.Println("saver changed room ")
-		case id := <- ThingManager(rooms).saver.del:
-			fmt.Println("saver deleting room")
+		case id := <- saver.del:
 			delStmt.Exec(id)
 			delExitsStmt.Exec(id)
-			fmt.Println("saver deleted room")
 		}
 	}
 }
@@ -434,3 +409,4 @@ func initDb(world *metaManager) {
 
 	world.db = db
 }
+ 

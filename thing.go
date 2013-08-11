@@ -1,8 +1,8 @@
 package main
 
-import (
-	"fmt"
-)
+//import (
+//	"fmt"
+//)
 
 /// @todo change channels to be unidirectional
 
@@ -143,36 +143,29 @@ func (m ThingManager) Remove(id identifier) {
 
 func (a ThingAccessor) TryGet(chainTime ChainTime) (setter SetterMsg, ok bool, reset bool) {
 	if a.ThingSetter == nil || a.ThingGetter == nil {
-		fmt.Println("accessor setter nil")
 		return SetterMsg{}, false, false
 	}
 	select {
 	case setter, ok := <-a.ThingSetter:
 		setter.chainTime <- chainTime
-		fmt.Println("returning setter response")
 		return setter, ok, false
 	case time, ok := <-a.ThingSetTime:
 		if !ok {
-			fmt.Println("TryGet error: ThingSetTime nil.")
 			return SetterMsg{}, true, false
 		}
 		if time < chainTime {
-			//			fmt.Println("Tryget chaintime preempted " + chainTime.String() + " by " + time.String())
 			return SetterMsg{}, true, true
 		}
 		setter, ok := <-a.ThingSetter
 		setter.chainTime <- chainTime
-		fmt.Println("Tryget returning set success")
 		return setter, ok, false
 	}
-	fmt.Println("Tryget got where it shouldn't")
 	return SetterMsg{}, false, false // this should never get hit
 }
 
 func (m ThingManager) GetById(id identifier) (Thing, bool) {
 	accessor := ThingManager(m).GetThingAccessor(id)
 	if accessor.ThingGetter == nil {
-		fmt.Println("ThingManager.GetById error: ThingGetter nil " + id.String())
 		return nil, false
 	}
 	thing, ok := <-accessor.ThingGetter
@@ -223,9 +216,7 @@ func NewThingManager() *ThingManager {
 				for {
 					select {
 					case setter <- SetterMsg{thing, thingChan, timeSetter}:
-//						fmt.Println("locking " + thing.Id().String())
 						time := <-timeSetter
-//						fmt.Println("locked " + thing.Id().String())
 						go setting(thing, thingChan, time)
 						return
 					case getter <- thing:
@@ -234,7 +225,6 @@ func NewThingManager() *ThingManager {
 						close(getter)
 						close(setter)
 						return
-
 					}
 				}
 			}
@@ -245,11 +235,6 @@ func NewThingManager() *ThingManager {
 					case t := <-thingChan:
 						go thingFunc(t, settingFunc)
 						manager.saver.change <- t
-						it, ok := t.(*Item)
-						if ok {
-							fmt.Println("manager saver.change " + it.Id().String() + " at " + it.Location.String())
-						}
-//						fmt.Println("unlocked " + thing.Id().String())
 						return
 					case getter <- thing:
 					case setTimeGetter <- time:
@@ -268,9 +253,7 @@ func NewThingManager() *ThingManager {
 				addThing.thing.SetId(<-NextId)
 				doAdd(addThing.thing)
 				addThing.response <- addThing.thing.Id()
-				fmt.Println("debug adding saver thing")
 				manager.saver.add <- addThing.thing
-				fmt.Println("debug added saver thing")
 			case thing := <-manager.dbAdd:
 				doAdd(thing)
 			case d := <-manager.del:
