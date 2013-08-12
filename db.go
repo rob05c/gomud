@@ -174,19 +174,16 @@ func loadItems(db *sql.DB, world *metaManager) {
 func itemSaver(db *sql.DB, items ItemManager) {
 	addStmt, err := db.Prepare(`insert into items (id, name, brief, location, location_type) values (?,?,?,?,?);`);
 	if err != nil {
-		fmt.Print("dberr itemSaver 0 ")
 		fmt.Println(err)
 		return
 	}
 	changeStmt, err := db.Prepare(`update items set name = ?, brief = ?, location = ?, location_type = ? where id = ?;`);
 	if err != nil {
-		fmt.Print("dberr itemSaver 1 ")
 		fmt.Println(err)
 		return
 	}
 	delStmt, err := db.Prepare(`delete from items where id = ?;`);
 	if err != nil {
-		fmt.Print("dberr itemSaver 2 ")
 		fmt.Println(err)
 		return
 	}
@@ -472,7 +469,7 @@ func tryLoadPlayer(name string, world *metaManager) bool {
 	}
 	rows.Scan(&player.id, &player.passthesalt, &player.pass, &player.level, &player.health, &player.mana, &player.Room)
 
-	itemRows, err := world.db.Query(`select id, name, brief from items where location = ` + player.id.String() + `;`)
+	itemRows, err := world.db.Query(`select id, name, brief, location, location_type from items where location = ` + player.id.String() + `;`)
 	defer itemRows.Close()
 	for itemRows.Next() {
 		loadItem(itemRows, world)
