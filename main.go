@@ -1,10 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/mattn/go-v8"
 	"strconv"
-	"database/sql"
 )
 
 const version = `0.0.4`
@@ -93,7 +93,6 @@ func NewWorld() *metaManager {
 			Items:       make(map[identifier]PlayerItemType),
 		})
 	}
-
 
 	return world
 }

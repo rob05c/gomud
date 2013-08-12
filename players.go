@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+
 //	 "runtime/debug"
 )
 
@@ -142,7 +143,7 @@ func (m PlayerManager) ChangeById(id identifier, modify func(p *Player)) bool {
 	accessor := ThingManager(m).GetThingAccessor(id)
 	if accessor.ThingGetter == nil {
 		fmt.Println("PlayerManager.ChangeById error: ThingGetter nil " + id.String())
-//		debug.PrintStack()
+		//		debug.PrintStack()
 		return false
 	}
 	setMsg, ok := <-accessor.ThingSetter

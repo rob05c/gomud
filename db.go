@@ -3,8 +3,8 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	_ "github.com/mattn/go-sqlite3"
+	"strconv"
 )
 
 /// @todo ? move this to a utils file ?
@@ -172,17 +172,17 @@ func loadItems(db *sql.DB, world *metaManager) {
 }
 
 func itemSaver(db *sql.DB, items ItemManager) {
-	addStmt, err := db.Prepare(`insert into items (id, name, brief, location, location_type) values (?,?,?,?,?);`);
+	addStmt, err := db.Prepare(`insert into items (id, name, brief, location, location_type) values (?,?,?,?,?);`)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	changeStmt, err := db.Prepare(`update items set name = ?, brief = ?, location = ?, location_type = ? where id = ?;`);
+	changeStmt, err := db.Prepare(`update items set name = ?, brief = ?, location = ?, location_type = ? where id = ?;`)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	delStmt, err := db.Prepare(`delete from items where id = ?;`);
+	delStmt, err := db.Prepare(`delete from items where id = ?;`)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -190,7 +190,7 @@ func itemSaver(db *sql.DB, items ItemManager) {
 	saver := ThingManager(items).saver
 	for {
 		select {
-		case t := <- saver.add:
+		case t := <-saver.add:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -202,7 +202,7 @@ func itemSaver(db *sql.DB, items ItemManager) {
 			txAdd.Exec(item.id, item.name, item.brief, int(item.Location), int(item.LocationType))
 
 			doCommit <- tx
-		case t := <- saver.change:
+		case t := <-saver.change:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -214,7 +214,7 @@ func itemSaver(db *sql.DB, items ItemManager) {
 			txChange.Exec(item.name, item.brief, int(item.Location), int(item.LocationType), int(item.id))
 
 			doCommit <- tx
-		case id := <- saver.del:
+		case id := <-saver.del:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -229,21 +229,20 @@ func itemSaver(db *sql.DB, items ItemManager) {
 	}
 }
 
-
 func npcSaver(db *sql.DB, npcs NpcManager) {
-	addStmt, err := db.Prepare(`insert into npcs (id, name, brief, dna, location, location_type) values (?,?,?,?,?,?);`);
+	addStmt, err := db.Prepare(`insert into npcs (id, name, brief, dna, location, location_type) values (?,?,?,?,?,?);`)
 	if err != nil {
 		fmt.Print("dberr npcSaver 0 ")
 		fmt.Println(err)
 		return
 	}
-	changeStmt, err := db.Prepare(`update npcs set name = ?, brief = ?, dna = ?, location = ?, location_type = ? where id = ?;`);
+	changeStmt, err := db.Prepare(`update npcs set name = ?, brief = ?, dna = ?, location = ?, location_type = ? where id = ?;`)
 	if err != nil {
 		fmt.Print("dberr npcSaver 1 ")
 		fmt.Println(err)
 		return
 	}
-	delStmt, err := db.Prepare(`delete from npcs where id = ?;`);
+	delStmt, err := db.Prepare(`delete from npcs where id = ?;`)
 	if err != nil {
 		fmt.Print("dberr npcSaver 2 ")
 		fmt.Println(err)
@@ -252,7 +251,7 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 	saver := ThingManager(npcs).saver
 	for {
 		select {
-		case t := <- saver.add:
+		case t := <-saver.add:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -264,7 +263,7 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 			txAdd.Exec(npc.id, npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType)
 
 			doCommit <- tx
-		case t := <- saver.change:
+		case t := <-saver.change:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -276,7 +275,7 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 			txChange.Exec(npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType, npc.id)
 
 			doCommit <- tx
-		case id := <- saver.del:
+		case id := <-saver.del:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -292,18 +291,18 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 }
 
 func playerSaver(db *sql.DB, players PlayerManager) {
-	addStmt, err := db.Prepare(`insert into players (id, name, salt, pass, level, health, mana, room_id) values (?,?,?,?,?,?,?,?);`);
+	addStmt, err := db.Prepare(`insert into players (id, name, salt, pass, level, health, mana, room_id) values (?,?,?,?,?,?,?,?);`)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	changeStmt, err := db.Prepare(`update players set name = ?, salt = ?, pass = ?, level = ?, health = ?, mana = ?, room_id = ? where id = ?;`);
+	changeStmt, err := db.Prepare(`update players set name = ?, salt = ?, pass = ?, level = ?, health = ?, mana = ?, room_id = ? where id = ?;`)
 	if err != nil {
 		fmt.Print("dberr playerSaver 1 ")
 		fmt.Println(err)
 		return
 	}
-	delStmt, err := db.Prepare(`delete from players where id = ?;`);
+	delStmt, err := db.Prepare(`delete from players where id = ?;`)
 	if err != nil {
 		fmt.Print("dberr playerSaver 2 ")
 		fmt.Println(err)
@@ -312,7 +311,7 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 	saver := ThingManager(players).saver
 	for {
 		select {
-		case t := <- saver.add:
+		case t := <-saver.add:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -324,7 +323,7 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 			txAdd.Exec(player.id, player.name, string(player.passthesalt), string(player.pass), player.level, player.health, player.mana, player.Room)
 
 			doCommit <- tx
-		case t := <- saver.change:
+		case t := <-saver.change:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -337,7 +336,7 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 			txChange.Exec(player.name, player.passthesalt, player.pass, player.level, player.health, player.mana, player.Room, player.id)
 
 			doCommit <- tx
-		case id := <- saver.del:
+		case id := <-saver.del:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -379,7 +378,7 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 		fmt.Println(err)
 		return
 	}
-	delStmt, err := db.Prepare(`delete from rooms where id = ?;`);
+	delStmt, err := db.Prepare(`delete from rooms where id = ?;`)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -397,7 +396,7 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 	saver := ThingManager(rooms).saver
 	for {
 		select {
-		case t := <- saver.add:
+		case t := <-saver.add:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -413,7 +412,7 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 			}
 
 			doCommit <- tx
-		case t := <- saver.change:
+		case t := <-saver.change:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -431,7 +430,7 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 			}
 
 			doCommit <- tx
-		case id := <- saver.del:
+		case id := <-saver.del:
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
@@ -464,7 +463,7 @@ func tryLoadPlayer(name string, world *metaManager) bool {
 		return false
 	}
 	player := Player{
-		name: name,
+		name:  name,
 		Items: make(map[identifier]PlayerItemType),
 	}
 	rows.Scan(&player.id, &player.passthesalt, &player.pass, &player.level, &player.health, &player.mana, &player.Room)
@@ -479,7 +478,6 @@ func tryLoadPlayer(name string, world *metaManager) bool {
 	for itemRows.Next() {
 		loadItem(itemRows, world)
 	}
-
 
 	return true
 }
@@ -518,9 +516,10 @@ func setNextId(db *sql.DB) {
 
 // sqlite commits must be sequential
 var doCommit chan *sql.Tx
+
 func commitManager() {
 	for {
-		tx := <- doCommit
+		tx := <-doCommit
 		err := tx.Commit()
 		if err != nil {
 			fmt.Print("db commit err: ")
@@ -553,4 +552,3 @@ func initDb(world *metaManager) {
 
 	world.db = db
 }
- 
