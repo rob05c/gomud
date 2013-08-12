@@ -194,19 +194,40 @@ func itemSaver(db *sql.DB, items ItemManager) {
 	for {
 		select {
 		case t := <- saver.add:
-			fmt.Println("saver item adding")
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txAdd := tx.Stmt(addStmt)
+
 			item := t.(*Item)
-			addStmt.Exec(item.id, item.name, item.brief, int(item.Location), int(item.LocationType))
-			fmt.Println("saver item added")
-		case changeThing := <- saver.change:
-			i := changeThing.(*Item)
-			fmt.Println("saver item changing " + i.id.String() + " " + i.Location.String())
-			changeStmt.Exec(i.name, i.brief, int(i.Location), int(i.LocationType), int(i.id))
-			fmt.Println("saver item changed " + i.id.String())
+			txAdd.Exec(item.id, item.name, item.brief, int(item.Location), int(item.LocationType))
+
+			doCommit <- tx
+		case t := <- saver.change:
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txChange := tx.Stmt(changeStmt)
+
+			item := t.(*Item)
+			txChange.Exec(item.name, item.brief, int(item.Location), int(item.LocationType), int(item.id))
+
+			doCommit <- tx
 		case id := <- saver.del:
-			fmt.Println("saver item deleting")
-			delStmt.Exec(id)
-			fmt.Println("saver item deleted")
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txDel := tx.Stmt(delStmt)
+
+			txDel.Exec(id)
+
+			doCommit <- tx
 		}
 	}
 }
@@ -235,13 +256,40 @@ func npcSaver(db *sql.DB, npcs NpcManager) {
 	for {
 		select {
 		case t := <- saver.add:
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txAdd := tx.Stmt(addStmt)
+
 			npc := t.(*Npc)
-			addStmt.Exec(npc.id, npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType)
+			txAdd.Exec(npc.id, npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType)
+
+			doCommit <- tx
 		case t := <- saver.change:
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txChange := tx.Stmt(changeStmt)
+
 			npc := t.(*Npc)
-			changeStmt.Exec(npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType, npc.id)
+			txChange.Exec(npc.name, npc.Brief, npc.Dna, npc.Location, npc.LocationType, npc.id)
+
+			doCommit <- tx
 		case id := <- saver.del:
-			delStmt.Exec(id)
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txDel := tx.Stmt(delStmt)
+
+			txDel.Exec(id)
+
+			doCommit <- tx
 		}
 	}
 }
@@ -268,26 +316,59 @@ func playerSaver(db *sql.DB, players PlayerManager) {
 	for {
 		select {
 		case t := <- saver.add:
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txAdd := tx.Stmt(addStmt)
+
 			player := t.(*Player)
-			addStmt.Exec(player.id, player.name, string(player.passthesalt), string(player.pass), player.level, player.health, player.mana, player.Room)
+			txAdd.Exec(player.id, player.name, string(player.passthesalt), string(player.pass), player.level, player.health, player.mana, player.Room)
+
+			doCommit <- tx
 		case t := <- saver.change:
-			fmt.Println("saving player")
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
 				panic(err) // debug
 				return
 			}
+			txChange := tx.Stmt(changeStmt)
 
 			player := t.(*Player)
-			txChange := tx.Stmt(changeStmt)
 			txChange.Exec(player.name, player.passthesalt, player.pass, player.level, player.health, player.mana, player.Room, player.id)
+
 			doCommit <- tx
-			fmt.Println("saved player")
 		case id := <- saver.del:
-			delStmt.Exec(id)
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				panic(err) // debug
+				return
+			}
+			txDel := tx.Stmt(delStmt)
+
+			txDel.Exec(id)
+
+			doCommit <- tx
 		}
 	}
+}
+
+/// @note this probably isn't useful, as we often need to execute a number of statements before committing.
+func doTransaction(db *sql.DB, statement *sql.Stmt, args ...interface{}) {
+	tx, err := db.Begin()
+	if err != nil {
+		fmt.Println(err)
+		panic(err) // debug
+		return
+	}
+	txStmt := tx.Stmt(statement)
+
+	txStmt.Exec(args...)
+
+	doCommit <- tx
 }
 
 func roomSaver(db *sql.DB, rooms RoomManager) {
@@ -320,18 +401,26 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 	for {
 		select {
 		case t := <- saver.add:
-			room := t.(*Room)
-			addStmt.Exec(room.id, room.name, room.Description)
-			for dir, link := range room.Exits {
-				addExitsStmt.Exec(room.id, link, dir)
-			}
-		case t := <- saver.change:
-			fmt.Println("saving room")
 			tx, err := db.Begin()
 			if err != nil {
 				fmt.Println(err)
-				panic(err) // debug
-				return
+				continue
+			}
+			txAdd := tx.Stmt(addStmt)
+			txAddExits := tx.Stmt(addExitsStmt)
+
+			room := t.(*Room)
+			txAdd.Exec(room.id, room.name, room.Description)
+			for dir, link := range room.Exits {
+				txAddExits.Exec(room.id, link, dir)
+			}
+
+			doCommit <- tx
+		case t := <- saver.change:
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
 			}
 			txChange := tx.Stmt(changeStmt)
 			txAddExits := tx.Stmt(addExitsStmt)
@@ -343,16 +432,26 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 			for dir, link := range room.Exits {
 				txAddExits.Exec(room.id, link, dir)
 			}
-			doCommit <- tx
 
-			fmt.Println("saved room")
+			doCommit <- tx
 		case id := <- saver.del:
-			delStmt.Exec(id)
-			delExitsStmt.Exec(id)
+			tx, err := db.Begin()
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			txDel := tx.Stmt(delStmt)
+			txDelExits := tx.Stmt(delExitsStmt)
+
+			txDel.Exec(id)
+			txDelExits.Exec(id)
+
+			doCommit <- tx
 		}
 	}
 }
 
+/// @todo fix loading the player's items
 func tryLoadPlayer(name string, world *metaManager) bool {
 	if world.db == nil {
 		return false
