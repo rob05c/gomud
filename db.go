@@ -469,16 +469,17 @@ func tryLoadPlayer(name string, world *metaManager) bool {
 	}
 	rows.Scan(&player.id, &player.passthesalt, &player.pass, &player.level, &player.health, &player.mana, &player.Room)
 
+	ThingManager(*world.players).DbAdd(&player)
+	world.rooms.ChangeById(player.Room, func(r *Room) {
+		r.Players[player.Id()] = true
+	})
+
 	itemRows, err := world.db.Query(`select id, name, brief, location, location_type from items where location = ` + player.id.String() + `;`)
 	defer itemRows.Close()
 	for itemRows.Next() {
 		loadItem(itemRows, world)
 	}
 
-	ThingManager(*world.players).DbAdd(&player)
-	world.rooms.ChangeById(player.Room, func(r *Room) {
-		r.Players[player.Id()] = true
-	})
 
 	return true
 }
