@@ -1,3 +1,7 @@
+/*
+ANSI color related types and functions
+
+*/
 package main
 
 type colorcode string

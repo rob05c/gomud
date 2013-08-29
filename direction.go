@@ -1,3 +1,7 @@
+/*
+direction.go contains Direction types and functions
+
+*/
 package main
 
 import (

@@ -1,3 +1,12 @@
+/* 
+items.go contains Item types and funcs, 
+along with an ItemManager type which 
+provides item-related functions for ThingManager
+
+Item implements the Thing interface.
+ItemManager is a ThingManager
+
+*/
 package main
 
 import (

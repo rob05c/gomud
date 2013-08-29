@@ -1,3 +1,8 @@
+/*
+listener.go handles tcp connections from clients.
+
+It manages logins, calls commands that players type, etc.
+*/
 package main
 
 import (

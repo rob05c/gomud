@@ -1,3 +1,8 @@
+/*
+telnet.go has telnet-related types and funcs.
+
+It negotiates telnet options, and handles telnet codes sent by clients
+*/
 package main
 
 import (

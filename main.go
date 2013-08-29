@@ -1,3 +1,7 @@
+/*
+main.go initializes the world and starts listening for connections
+
+*/
 package main
 
 import (

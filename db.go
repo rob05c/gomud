@@ -1,3 +1,12 @@
+/*
+db.go handles database/persistence
+
+initDb() creates and assigns the db to world, 
+and launches saver goroutines. 
+
+These saver goroutines listen to the ThingManagers' saver chans,
+and save to the db when a change is made.
+*/
 package main
 
 import (

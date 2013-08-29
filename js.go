@@ -1,3 +1,7 @@
+/*
+js.go contains functions for scripting NPCs via Javascript.
+
+*/
 package main
 
 import (
@@ -8,7 +12,7 @@ import (
 	"time"
 )
 
-/// be aware this will need to include damage type in the future. 
+/// be aware this will need to include damage type in the future.
 /// For example, the npc might do fire damage to a player wearing a fire resistance ring.
 /// @todo add custom attack message
 func jsAttackPlayer(self identifier, playerName string, baseDamage uint, world *metaManager) bool {
@@ -258,9 +262,8 @@ func initializeV8(world *metaManager) *v8.V8Context {
 			fmt.Println("mud_reval self was not a string")
 			return nil
 		}
-		var selfId int
-		var err error
-		if selfId, err = strconv.Atoi(selfIdString); err != nil {
+		selfId, err := strconv.Atoi(selfIdString)
+		if err != nil {
 			fmt.Println("mud_reval npcId not integral")
 			return nil
 		}
@@ -270,8 +273,8 @@ func initializeV8(world *metaManager) *v8.V8Context {
 			fmt.Println("mud_reval waitMs was not string")
 			return nil
 		}
-		var waitMs int
-		if waitMs, err = strconv.Atoi(waitMsString); err != nil {
+		waitMs, err := strconv.Atoi(waitMsString)
+		if err != nil {
 			fmt.Println("mud_reval waitMs not integral")
 			return nil
 		}

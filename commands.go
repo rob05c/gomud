@@ -1,3 +1,13 @@
+/*
+commands.go handles the routing of commands. 
+
+When a player types a command, the cooresponding function is called from the commands map
+
+Note Commands are the primary place the "chain locking" pattern is used.
+If you get more than 1 setter at once, you MUST use this pattern to prevent deadlock and starvation.
+See the thing.go file comment for more details. 
+Look at functions in this file which use NextChainTime for examples.
+*/
 package main
 
 import (

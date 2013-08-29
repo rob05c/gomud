@@ -1,3 +1,12 @@
+/* 
+players.go contains Player types and funcs, 
+along with an PlayerManager type which 
+provides room-related functions for ThingManager
+
+Player implements the Thing interface.
+PlayerManager is a ThingManager
+
+*/
 package main
 
 import (
@@ -18,7 +27,7 @@ const (
 //
 // player
 //
-// This data must be non-volatile. 
+// This data must be non-volatile.
 // If the server closes and reopens, it must persist
 //
 type Player struct {
@@ -162,7 +171,7 @@ func (m PlayerManager) ChangeById(id identifier, modify func(p *Player)) bool {
 	return true
 }
 
-/// @todo move this to MetaManager ? Player ? 
+/// @todo move this to MetaManager ? Player ?
 /// @todo change players and rooms to use Accessors rather than IDs; then this won't need the world.
 func (m PlayerManager) Move(player identifier, direction Direction, world *metaManager) bool {
 	chainTime := <-NextChainTime
