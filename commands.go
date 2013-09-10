@@ -304,14 +304,14 @@ func RoomId(args []string, playerId identifier, world *World) {
 }
 
 func createItem(args []string, playerId identifier, world *World) {
-	if len(args) < 1 {
-		tryPlayerWrite(playerId, world.players, "What do you want to create?", "createItem called with invalid player")
+	if len(args) < 3 {
+		tryPlayerWrite(playerId, world.players, "A new item must have a name and at least a 2-word description", "createItem called with invalid player")
 		return
 	}
 	item := Item{
 		id:           invalidIdentifier,
 		name:         args[0],
-		brief:        "An amorphous blob",
+		brief:        strings.Join(args[1:], " "),
 		Location:     playerId,
 		LocationType: ilPlayer,
 		Items:        make(map[identifier]bool),
@@ -785,7 +785,7 @@ func help(playerId identifier, world *World) {
 		"connectRoom	cr	connectRoom direction RoomId\r\n" +
 		"describeRoom	dr	describeRoom description\r\n" +
 		"roomid			roomid\r\n" +
-		"createitem	ci	creatitem name\r\n" +
+		"createitem	ci	creatitem name description\r\n" +
 		"createnpc	cn	createnpc name\r\n" +
 		"describeitem	di	describeitem itemId description\r\n" +
 		"describenpc	dn	describenpc npcId description\r\n" +
