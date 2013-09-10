@@ -3,7 +3,7 @@ thing.go handles the data management for gomud.
 
 Thing is an interface, which data types implement.
 
-Every Thing gets its own goroutine, with channels to get and set the value. 
+Every Thing gets its own goroutine, with channels to get and set the value.
 
 Getting is completely concurrent and never blocks.
 Setting can only be done by one goroutine at a time. There are convenience functions to set as if it were sequential.
@@ -13,13 +13,13 @@ Often, it must be guaranteed that certain Things don't change, when one is chang
 For example, when a player picks up an item. We must guarantee that everyone in the room sees the message "Bill picks up a bowl."
 While at the same time, guaranteeing no one leaves the room, and then gets the message.
 
-To provide this guarantee, gomud has an idiom whereby the setters of each Thing are requested, then the things in 
-question are changed (bowl is in Bill's inventory, and out of the Room). Then, the "observer" Things have their 
+To provide this guarantee, gomud has an idiom whereby the setters of each Thing are requested, then the things in
+question are changed (bowl is in Bill's inventory, and out of the Room). Then, the "observer" Things have their
 current value written unchanged to their Setters (to release them).
 
-Furthermore, to prevent deadlocks and starvation, when "chaining" setter requests, a StartTime is maintained, and 
-if any Setter returns a AlreadyRequestedTime of older than our StartTime, we MUST release ALL Setters and start 
-over (without resetting our StartTime). 
+Furthermore, to prevent deadlocks and starvation, when "chaining" setter requests, a StartTime is maintained, and
+if any Setter returns a AlreadyRequestedTime of older than our StartTime, we MUST release ALL Setters and start
+over (without resetting our StartTime).
 
 This guarntees no goroutines deadlock waiting for eachother's setters, and guarntees no goroutines starves.
 You'll notice this solution bears a remarkable similarity to OS scheduling algorithms.

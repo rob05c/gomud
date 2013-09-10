@@ -1,6 +1,6 @@
-/* 
-players.go contains Player types and funcs, 
-along with an PlayerManager type which 
+/*
+players.go contains Player types and funcs,
+along with an PlayerManager type which
 provides room-related functions for ThingManager
 
 Player implements the Thing interface.
