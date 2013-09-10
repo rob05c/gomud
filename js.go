@@ -175,175 +175,175 @@ func jsRandomMove(selfId identifier, world *metaManager) {
 	return
 }
 
-func jsGetPlayer(world *metaManager, args ...interface{}) interface{} {
+func jsGetPlayer(world *metaManager, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		fmt.Println("args zero")
-		return ""
+		return "", nil
 	}
 	var playerName string
 	var ok bool
 	if playerName, ok = args[0].(string); !ok {
 		fmt.Println("argzero not string")
-		return ""
+		return "", nil
 	}
 	if len(playerName) < 3 {
-		return ""
+		return "", nil
 	}
 	playerName = playerName[1 : len(playerName)-1]
 
 	player, ok := world.players.GetByName(playerName)
 	if !ok {
-		return ""
+		return "", nil
 	}
 	return struct {
 		Id   int
 		Name string
-	}{Id: int(player.Id()), Name: player.Name()}
+	}{Id: int(player.Id()), Name: player.Name()}, nil
 }
 
-func jsPrintln(args ...interface{}) interface{} {
+func jsPrintln(args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		fmt.Println("no args")
-		return nil
+		return nil, nil
 	}
 	var argString string
 	var ok bool
 	if argString, ok = args[0].(string); !ok {
 		fmt.Printf("arg not string %T\n", args[0])
-		return nil
+		return nil, nil
 	}
 	if len(argString) < 3 {
 		fmt.Println("args too short X" + argString + "x")
-		return nil
+		return nil, nil
 	}
 	argString = argString[1 : len(argString)-1]
 	fmt.Println(argString)
-	return nil
+	return nil, nil
 }
 
 func initializeV8(world *metaManager) *v8.V8Context {
 	world.script = v8.NewContext()
 	world.script.AddFunc("mud_println", jsPrintln)
-	world.script.AddFunc("mud_getPlayer", func(args ...interface{}) interface{} {
+	world.script.AddFunc("mud_getPlayer", func(args ...interface{}) (interface{}, error) {
 		if len(args) == 0 {
-			return nil
+			return nil, nil
 		}
 		return jsGetPlayer(world, args[0])
 	})
 
-	world.script.AddFunc("mud_moveRandom", func(args ...interface{}) interface{} {
+	world.script.AddFunc("mud_moveRandom", func(args ...interface{}) (interface{}, error) {
 		if len(args) == 0 {
-			return nil
+			return nil, nil
 		}
 		var selfIdString string
 		var ok bool
 		if selfIdString, ok = args[0].(string); !ok {
 			fmt.Println("mud_moveRandom self was not a string")
-			return nil
+			return nil, nil
 		}
 		var selfId int
 		var err error
 		if selfId, err = strconv.Atoi(selfIdString); err != nil {
 			fmt.Println("mud_moveRandom npcId not integral")
-			return nil
+			return nil, nil
 		}
 		jsRandomMove(identifier(selfId), world)
-		return nil
+		return nil, nil
 	})
 
-	world.script.AddFunc("mud_reval", func(args ...interface{}) interface{} {
+	world.script.AddFunc("mud_reval", func(args ...interface{}) (interface{}, error) {
 		if len(args) < 2 {
 			fmt.Println("args len insufficient " + strconv.Itoa(len(args)))
-			return nil
+			return nil, nil
 		}
 		var selfIdString string
 		var ok bool
 		if selfIdString, ok = args[0].(string); !ok {
 			fmt.Println("mud_reval self was not a string")
-			return nil
+			return nil, nil
 		}
 		selfId, err := strconv.Atoi(selfIdString)
 		if err != nil {
 			fmt.Println("mud_reval npcId not integral")
-			return nil
+			return nil, nil
 		}
 
 		var waitMsString string
 		if waitMsString, ok = args[1].(string); !ok {
 			fmt.Println("mud_reval waitMs was not string")
-			return nil
+			return nil, nil
 		}
 		waitMs, err := strconv.Atoi(waitMsString)
 		if err != nil {
 			fmt.Println("mud_reval waitMs not integral")
-			return nil
+			return nil, nil
 		}
 
 		jsReval(identifier(selfId), waitMs, world)
-		return nil
+		return nil, nil
 	})
 
-	world.script.AddFunc("mud_roomPlayers", func(args ...interface{}) interface{} {
+	world.script.AddFunc("mud_roomPlayers", func(args ...interface{}) (interface{}, error) {
 		if len(args) == 0 {
 			fmt.Println("mud_roomPlayers empty args")
-			return nil
+			return nil, nil
 		}
 		var selfIdString string
 		var ok bool
 		if selfIdString, ok = args[0].(string); !ok {
 			fmt.Println("mud_roomPlayers self was not a string")
-			return nil
+			return nil, nil
 		}
 		var selfId int
 		var err error
 		if selfId, err = strconv.Atoi(selfIdString); err != nil {
 			fmt.Println("mud_roomPlayers npcId not integral")
-			return nil
+			return nil, nil
 		}
-		return jsGetRoomPlayers(identifier(selfId), world)
+		return jsGetRoomPlayers(identifier(selfId), world), nil
 	})
 
-	world.script.AddFunc("mud_attackPlayer", func(args ...interface{}) interface{} {
+	world.script.AddFunc("mud_attackPlayer", func(args ...interface{}) (interface{}, error) {
 		if len(args) < 3 {
 			fmt.Println("mud_attackPlayer args len insufficient " + strconv.Itoa(len(args)))
-			return nil
+			return nil, nil
 		}
 		var selfIdString string
 		var ok bool
 		if selfIdString, ok = args[0].(string); !ok {
 			fmt.Println("mud_attackPlayer self was not a string")
-			return nil
+			return nil, nil
 		}
 		var selfId int
 		var err error
 		if selfId, err = strconv.Atoi(selfIdString); err != nil {
 			fmt.Println("mud_attackPlayer npcId not integral")
-			return nil
+			return nil, nil
 		}
 
 		var playerName string
 		if playerName, ok = args[1].(string); !ok {
 			fmt.Println("mud_attackPlayer argzero not string")
-			return nil
+			return nil, nil
 		}
 		if len(playerName) < 3 {
 			fmt.Println("mud_attackPlayer playername too short")
-			return nil
+			return nil, nil
 		}
 		playerName = playerName[1 : len(playerName)-1]
 
 		var damageString string
 		if damageString, ok = args[2].(string); !ok {
 			fmt.Println("mud_attackPlayer self was not a string")
-			return nil
+			return nil, nil
 		}
 		var damage uint64
 		if damage, err = strconv.ParseUint(damageString, 10, 64); err != nil {
 			fmt.Println("mud_attackPlayer damage not integral")
-			return nil
+			return nil, nil
 		}
 		jsAttackPlayer(identifier(selfId), playerName, uint(damage), world)
-		return nil
+		return nil, nil
 	})
 
 	return world.script
