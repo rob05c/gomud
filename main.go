@@ -24,7 +24,7 @@ const invalidIdentifier = identifier(-1)
 
 const endl = "\r\n"
 
-type metaManager struct {
+type World struct {
 	rooms   *RoomManager
 	players *PlayerManager
 	items   *ItemManager
@@ -45,7 +45,7 @@ const NotChaining = ChainTime(0)
 var NextId chan identifier // @todo make local, and passed to ThingManagers, which make it accessible
 var CurrentId chan identifier
 
-func NewWorld() *metaManager {
+func NewWorld() *World {
 	go func() {
 		NextChainTime = make(chan ChainTime)
 		chainTime := ChainTime(0)
@@ -75,7 +75,7 @@ func NewWorld() *metaManager {
 	rm := RoomManager(*NewThingManager())
 	nm := NpcManager(*NewThingManager())
 	im := ItemManager(*NewThingManager())
-	world := &metaManager{
+	world := &World{
 		players: &pm,
 		rooms:   &rm,
 		npcs:    &nm,

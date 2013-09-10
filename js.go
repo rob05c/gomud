@@ -15,7 +15,7 @@ import (
 /// be aware this will need to include damage type in the future.
 /// For example, the npc might do fire damage to a player wearing a fire resistance ring.
 /// @todo add custom attack message
-func jsAttackPlayer(self identifier, playerName string, baseDamage uint, world *metaManager) bool {
+func jsAttackPlayer(self identifier, playerName string, baseDamage uint, world *World) bool {
 	chainTime := <-NextChainTime
 	playerAccessor := ThingManager(*world.players).GetThingAccessorByName(playerName)
 	for {
@@ -68,7 +68,7 @@ func jsAttackPlayer(self identifier, playerName string, baseDamage uint, world *
 	return true
 }
 
-func jsGetRoomPlayers(selfId identifier, world *metaManager) interface{} {
+func jsGetRoomPlayers(selfId identifier, world *World) interface{} {
 	self, ok := world.npcs.GetById(selfId)
 	if !ok {
 		fmt.Println("jsGetRoomPlayers got nonlocated npc '" + selfId.String() + "'")
@@ -94,7 +94,7 @@ func jsGetRoomPlayers(selfId identifier, world *metaManager) interface{} {
 	return players
 }
 
-func jsReval(selfId identifier, waitMs int, world *metaManager) {
+func jsReval(selfId identifier, waitMs int, world *World) {
 	go func() {
 		time.Sleep(time.Duration(waitMs) * time.Millisecond)
 		self, ok := world.npcs.GetById(selfId)
@@ -106,7 +106,7 @@ func jsReval(selfId identifier, waitMs int, world *metaManager) {
 	}()
 }
 
-func jsRandomMove(selfId identifier, world *metaManager) {
+func jsRandomMove(selfId identifier, world *World) {
 	chainTime := <-NextChainTime
 	selfAccessor := ThingManager(*world.npcs).GetThingAccessor(selfId)
 	for {
@@ -175,7 +175,7 @@ func jsRandomMove(selfId identifier, world *metaManager) {
 	return
 }
 
-func jsGetPlayer(world *metaManager, args ...interface{}) (interface{}, error) {
+func jsGetPlayer(world *World, args ...interface{}) (interface{}, error) {
 	if len(args) == 0 {
 		fmt.Println("args zero")
 		return "", nil
@@ -221,7 +221,7 @@ func jsPrintln(args ...interface{}) (interface{}, error) {
 	return nil, nil
 }
 
-func initializeV8(world *metaManager) *v8.V8Context {
+func initializeV8(world *World) *v8.V8Context {
 	world.script = v8.NewContext()
 	world.script.AddFunc("mud_println", jsPrintln)
 	world.script.AddFunc("mud_getPlayer", func(args ...interface{}) (interface{}, error) {

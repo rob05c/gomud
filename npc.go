@@ -51,7 +51,7 @@ func (n *Npc) selfWrappedDna() string {
 	return "(function(self) {" + n.Dna + "})(" + n.id.String() + ")"
 }
 
-func (n *Npc) Animate(world *metaManager) {
+func (n *Npc) Animate(world *World) {
 	if n.Dna == "" {
 		fmt.Println("Could not animate lifeless " + n.Name())
 		return

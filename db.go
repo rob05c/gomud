@@ -81,7 +81,7 @@ func loadRooms(db *sql.DB, rooms RoomManager) {
 	}
 }
 
-func loadNpcs(db *sql.DB, world *metaManager) {
+func loadNpcs(db *sql.DB, world *World) {
 	rows, err := db.Query(`select id, name, brief, dna, location, location_type from npcs;`)
 	if err != nil {
 		fmt.Print("dberr loadNpcs ")
@@ -132,7 +132,7 @@ func loadNpcs(db *sql.DB, world *metaManager) {
 	}
 }
 
-func loadItem(rows *sql.Rows, world *metaManager) {
+func loadItem(rows *sql.Rows, world *World) {
 	item := Item{
 		Items: make(map[identifier]bool),
 	}
@@ -167,7 +167,7 @@ func loadItem(rows *sql.Rows, world *metaManager) {
 	ThingManager(*world.items).DbAdd(&item)
 }
 
-func loadItems(db *sql.DB, world *metaManager) {
+func loadItems(db *sql.DB, world *World) {
 	rows, err := db.Query(`select id, name, brief, location, location_type from items;`)
 	if err != nil {
 		fmt.Print("dberr loadItems ")
@@ -457,7 +457,7 @@ func roomSaver(db *sql.DB, rooms RoomManager) {
 }
 
 /// @todo fix loading the player's items
-func tryLoadPlayer(name string, world *metaManager) bool {
+func tryLoadPlayer(name string, world *World) bool {
 	if world.db == nil {
 		return false
 	}
@@ -538,7 +538,7 @@ func commitManager() {
 	}
 }
 
-func initDb(world *metaManager) {
+func initDb(world *World) {
 	db, err := sql.Open("sqlite3", "./gomud.sqlite")
 	if err != nil {
 		fmt.Print("dberr init ")

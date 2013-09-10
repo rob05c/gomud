@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName string, newPass []byte) {
+func handleCreatingPlayerPassVerify(world World, c net.Conn, playerName string, newPass []byte) {
 	defer func() {
 		for i := range newPass {
 			newPass[i] = 0
@@ -85,7 +85,7 @@ func handleCreatingPlayerPassVerify(world metaManager, c net.Conn, playerName st
 	go handlePlayer(world, newPlayerId)
 }
 
-func handleCreatingPlayerPass(world metaManager, c net.Conn, player string) {
+func handleCreatingPlayerPass(world World, c net.Conn, player string) {
 	c.Write([]byte("Please enter a password for your character.\r\n"))
 	pass, err := getBytesSecure(c)
 	if err != nil {
@@ -94,7 +94,7 @@ func handleCreatingPlayerPass(world metaManager, c net.Conn, player string) {
 	go handleCreatingPlayerPassVerify(world, c, player, pass)
 }
 
-func handleCreatingPlayer(world metaManager, c net.Conn, player string) {
+func handleCreatingPlayer(world World, c net.Conn, player string) {
 	const playerCreateMessage = "No player by that name exists. Do you want to create a player?"
 	c.Write([]byte(playerCreateMessage + "\r\n"))
 	createReply, err := getString(c)
@@ -108,7 +108,7 @@ func handleCreatingPlayer(world metaManager, c net.Conn, player string) {
 	go handleLogin(world, c)
 }
 
-func handleLoginPass(world metaManager, c net.Conn, playerName string) {
+func handleLoginPass(world World, c net.Conn, playerName string) {
 	playerName = strings.ToLower(playerName)
 	c.Write([]byte("Please enter your password.\r\n"))
 	pass, err := getBytesSecure(c)
@@ -147,7 +147,7 @@ func handleLoginPass(world metaManager, c net.Conn, playerName string) {
 }
 
 // this handles new connections, which are not yet logged in
-func handleLogin(world metaManager, c net.Conn) {
+func handleLogin(world World, c net.Conn) {
 	negotiateTelnet(c)
 	const loginMessageString = "Please enter your name:\r\n"
 	c.Write([]byte(loginMessageString))
@@ -177,7 +177,7 @@ func handleLogin(world metaManager, c net.Conn) {
 }
 
 // this handles connections for a logged-in player
-func handlePlayer(world metaManager, playerId identifier) {
+func handlePlayer(world World, playerId identifier) {
 	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("handlePlayer error: player not found " + playerId.String())
@@ -299,7 +299,7 @@ func getString(c net.Conn) (string, error) {
 }
 
 // listen for new connections, and spin them off into goroutines
-func listen(world metaManager) {
+func listen(world World) {
 	port := defaultPort
 	if len(os.Args) > 1 {
 		argPort, success := strconv.Atoi(os.Args[1])

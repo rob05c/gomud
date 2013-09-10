@@ -19,7 +19,7 @@ import (
 
 const commandRejectMessage = "I don't understand."
 
-var commands = map[string]func([]string, identifier, *metaManager){}
+var commands = map[string]func([]string, identifier, *World){}
 
 func ToProper(player string) string {
 	if len(player) == 0 {
@@ -53,7 +53,7 @@ func tryPlayerWrite(playerId identifier, players *PlayerManager, message string,
 	return true
 }
 
-func say(message string, playerId identifier, world *metaManager) {
+func say(message string, playerId identifier, world *World) {
 	if len(message) == 0 {
 		return
 	}
@@ -76,7 +76,7 @@ func say(message string, playerId identifier, world *metaManager) {
 	go player.Write(selfMessage)
 }
 
-func tell(message string, playerId identifier, telleePlayer string, world *metaManager) {
+func tell(message string, playerId identifier, telleePlayer string, world *World) {
 	if len(message) == 0 {
 		return
 	}
@@ -105,7 +105,7 @@ func tell(message string, playerId identifier, telleePlayer string, world *metaM
 	go player.Write(tellerMessage)
 }
 
-func walk(d Direction, playerId identifier, world *metaManager) {
+func walk(d Direction, playerId identifier, world *World) {
 	_, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("walk called with invalid player id '" + playerId.String() + "'")
@@ -114,7 +114,7 @@ func walk(d Direction, playerId identifier, world *metaManager) {
 	world.players.Move(playerId, d, world)
 }
 
-func look(playerId identifier, world *metaManager) {
+func look(playerId identifier, world *World) {
 	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("look called with invalid player id '" + playerId.String() + "'")
@@ -129,7 +129,7 @@ func look(playerId identifier, world *metaManager) {
 	}
 }
 
-func quicklook(playerId identifier, world *metaManager) {
+func quicklook(playerId identifier, world *World) {
 	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("quicklook called with invalid player " + playerId.String())
@@ -145,7 +145,7 @@ func quicklook(playerId identifier, world *metaManager) {
 	}
 }
 
-func makeRoom(direction Direction, name string, playerId identifier, world *metaManager) {
+func makeRoom(direction Direction, name string, playerId identifier, world *World) {
 	chainTime := <-NextChainTime
 	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
 	for {
@@ -187,7 +187,7 @@ func makeRoom(direction Direction, name string, playerId identifier, world *meta
 	}
 }
 
-func connectRoom(args []string, playerId identifier, world *metaManager) bool {
+func connectRoom(args []string, playerId identifier, world *World) bool {
 	chainTime := <-NextChainTime
 	if len(args) < 2 {
 		tryPlayerWrite(playerId, world.players, "What do you want to connect?", "connectroom error: insufficient args and no player")
@@ -249,7 +249,7 @@ func connectRoom(args []string, playerId identifier, world *metaManager) bool {
 	return true
 }
 
-func describeRoom(args []string, playerId identifier, world *metaManager) bool {
+func describeRoom(args []string, playerId identifier, world *World) bool {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, commandRejectMessage, "describeRoom called with invalid player")
 		return false
@@ -289,7 +289,7 @@ func describeRoom(args []string, playerId identifier, world *metaManager) bool {
 	return true
 }
 
-func RoomId(args []string, playerId identifier, world *metaManager) {
+func RoomId(args []string, playerId identifier, world *World) {
 	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("Roomid called with nonexistent player " + playerId.String())
@@ -303,7 +303,7 @@ func RoomId(args []string, playerId identifier, world *metaManager) {
 	player.Write(currentRoom.id.String())
 }
 
-func createItem(args []string, playerId identifier, world *metaManager) {
+func createItem(args []string, playerId identifier, world *World) {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "What do you want to create?", "createItem called with invalid player")
 		return
@@ -323,7 +323,7 @@ func createItem(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func createNpc(args []string, playerId identifier, world *metaManager) {
+func createNpc(args []string, playerId identifier, world *World) {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "Who do you want to create?", "createNpc called with invalid player")
 		return
@@ -345,7 +345,7 @@ func createNpc(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func animate(args []string, playerId identifier, world *metaManager) {
+func animate(args []string, playerId identifier, world *World) {
 	if len(args) < 2 {
 		tryPlayerWrite(playerId, world.players, "Who do you want to animate?", "animate called with invalid player")
 		return
@@ -365,7 +365,7 @@ func animate(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func describeNpc(args []string, playerId identifier, world *metaManager) {
+func describeNpc(args []string, playerId identifier, world *World) {
 	if len(args) < 2 {
 		tryPlayerWrite(playerId, world.players, "What do you want to describe?", "describeNpc called with invalid params")
 		return
@@ -385,7 +385,7 @@ func describeNpc(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func describeItem(args []string, playerId identifier, world *metaManager) {
+func describeItem(args []string, playerId identifier, world *World) {
 	if len(args) < 2 {
 		tryPlayerWrite(playerId, world.players, "What do you want to describe?", "describeItem called with invalid params")
 		return
@@ -405,7 +405,7 @@ func describeItem(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func get(args []string, playerId identifier, world *metaManager) bool {
+func get(args []string, playerId identifier, world *World) bool {
 	const notHereMsg = "That is not here."
 	const cantGetMsg = "You can't pick that up."
 	if len(args) < 1 {
@@ -511,7 +511,7 @@ func get(args []string, playerId identifier, world *metaManager) bool {
 	return true
 }
 
-func drop(args []string, playerId identifier, world *metaManager) bool {
+func drop(args []string, playerId identifier, world *World) bool {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "What do you want to drop?", "drop called with invalid params")
 		return false
@@ -628,7 +628,7 @@ func drop(args []string, playerId identifier, world *metaManager) bool {
 	return true
 }
 
-func items(args []string, playerId identifier, world *metaManager) {
+func items(args []string, playerId identifier, world *World) {
 	world.players.ChangeById(playerId, func(player *Player) {
 		itemString := ""
 		for itemId, itemType := range player.Items {
@@ -657,7 +657,7 @@ func items(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func itemsHere(args []string, playerId identifier, world *metaManager) {
+func itemsHere(args []string, playerId identifier, world *World) {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "What do you want to drop?", "drop called with invalid params")
 		return
@@ -715,7 +715,7 @@ func itemsHere(args []string, playerId identifier, world *metaManager) {
 	}
 }
 
-func inventory(args []string, playerId identifier, world *metaManager) {
+func inventory(args []string, playerId identifier, world *World) {
 	world.players.ChangeById(playerId, func(player *Player) {
 		s := "You are carrying "
 		var items []string
@@ -769,7 +769,7 @@ func inventory(args []string, playerId identifier, world *metaManager) {
 	})
 }
 
-func help(playerId identifier, world *metaManager) {
+func help(playerId identifier, world *World) {
 	s := "movement\r\n" +
 		"------------------------------\r\n" +
 		"To move in a direction, simply type the cardinal direction you wish to move in, e.g. 'north'. Shortcuts also work, e.g. 'n'.\r\n" +
@@ -820,7 +820,7 @@ func help(playerId identifier, world *metaManager) {
 }
 
 func initCommandsAdmin() {
-	commands["makeroom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["makeroom"] = func(args []string, playerId identifier, world *World) {
 		if len(args) < 2 {
 			player, exists := world.players.GetById(playerId)
 			if !exists {
@@ -854,106 +854,106 @@ func initCommandsAdmin() {
 	}
 	commands["mr"] = commands["makeroom"]
 
-	commands["connectroom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["connectroom"] = func(args []string, playerId identifier, world *World) {
 		connectRoom(args, playerId, world)
 	}
 	commands["cr"] = commands["connectroom"]
 
-	commands["describeroom"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["describeroom"] = func(args []string, playerId identifier, world *World) {
 		describeRoom(args, playerId, world)
 	}
 	commands["dr"] = commands["describeroom"]
 
-	commands["roomid"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["roomid"] = func(args []string, playerId identifier, world *World) {
 		RoomId(args, playerId, world)
 	}
 
-	commands["createitem"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["createitem"] = func(args []string, playerId identifier, world *World) {
 		createItem(args, playerId, world)
 	}
 	commands["ci"] = commands["createitem"]
 
-	commands["createnpc"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["createnpc"] = func(args []string, playerId identifier, world *World) {
 		createNpc(args, playerId, world)
 	}
 	commands["cn"] = commands["createnpc"]
 
-	commands["describeitem"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["describeitem"] = func(args []string, playerId identifier, world *World) {
 		describeItem(args, playerId, world)
 	}
 	commands["di"] = commands["describeitem"]
 
-	commands["describenpc"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["describenpc"] = func(args []string, playerId identifier, world *World) {
 		describeNpc(args, playerId, world)
 	}
 	commands["dn"] = commands["describenpc"]
 
-	commands["animate"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["animate"] = func(args []string, playerId identifier, world *World) {
 		animate(args, playerId, world)
 	}
 	commands["an"] = commands["animate"]
-	commands["help"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["help"] = func(args []string, playerId identifier, world *World) {
 		help(playerId, world)
 	}
 	commands["?"] = commands["help"]
 }
 
 func initCommandsDirections() {
-	commands["south"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["south"] = func(args []string, playerId identifier, world *World) {
 		walk(south, playerId, world)
 	}
 	commands["s"] = commands["south"]
-	commands["north"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["north"] = func(args []string, playerId identifier, world *World) {
 		walk(north, playerId, world)
 	}
 	commands["n"] = commands["north"]
-	commands["east"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["east"] = func(args []string, playerId identifier, world *World) {
 		walk(east, playerId, world)
 	}
 	commands["e"] = commands["east"]
-	commands["west"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["west"] = func(args []string, playerId identifier, world *World) {
 		walk(west, playerId, world)
 	}
 	commands["w"] = commands["west"]
-	commands["northeast"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["northeast"] = func(args []string, playerId identifier, world *World) {
 		walk(northeast, playerId, world)
 	}
 	commands["ne"] = commands["northeast"]
-	commands["northwest"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["northwest"] = func(args []string, playerId identifier, world *World) {
 		walk(northwest, playerId, world)
 	}
 	commands["nw"] = commands["northwest"]
-	commands["southeast"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["southeast"] = func(args []string, playerId identifier, world *World) {
 		walk(southeast, playerId, world)
 	}
 	commands["se"] = commands["southeast"]
-	commands["southwest"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["southwest"] = func(args []string, playerId identifier, world *World) {
 		walk(southwest, playerId, world)
 	}
 	commands["sw"] = commands["southwest"]
 }
 
 func initCommandsItems() {
-	commands["get"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["get"] = func(args []string, playerId identifier, world *World) {
 		get(args, playerId, world)
 	}
 	commands["g"] = commands["get"]
-	commands["drop"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["drop"] = func(args []string, playerId identifier, world *World) {
 		drop(args, playerId, world)
 	}
 
-	commands["items"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["items"] = func(args []string, playerId identifier, world *World) {
 		items(args, playerId, world)
 	}
 	commands["ii"] = commands["items"]
 
-	commands["inventory"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["inventory"] = func(args []string, playerId identifier, world *World) {
 		inventory(args, playerId, world)
 	}
 	commands["inv"] = commands["inventory"]
 	commands["i"] = commands["inventory"]
 
-	commands["itemshere"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["itemshere"] = func(args []string, playerId identifier, world *World) {
 		itemsHere(args, playerId, world)
 	}
 	commands["ih"] = commands["itemshere"]
@@ -961,22 +961,22 @@ func initCommandsItems() {
 }
 
 func initCommandsBasic() {
-	commands["look"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["look"] = func(args []string, playerId identifier, world *World) {
 		look(playerId, world)
 	}
 	commands["l"] = commands["look"]
 
-	commands["quicklook"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["quicklook"] = func(args []string, playerId identifier, world *World) {
 		quicklook(playerId, world)
 	}
 	commands["ql"] = commands["quicklook"]
 
-	commands["say"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["say"] = func(args []string, playerId identifier, world *World) {
 		say(strings.Join(args, " "), playerId, world)
 	}
 	commands["'"] = commands["say"]
 
-	commands["tell"] = func(args []string, playerId identifier, world *metaManager) {
+	commands["tell"] = func(args []string, playerId identifier, world *World) {
 		if len(args) < 2 {
 			return
 		}

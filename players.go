@@ -68,7 +68,7 @@ func (p *Player) MaxHealth() uint {
 }
 
 /// @todo ? remove the changePlayer call, and require users to call it themselves ?
-func (p *Player) Injure(damage uint, world *metaManager) {
+func (p *Player) Injure(damage uint, world *World) {
 	world.players.ChangeById(p.Id(), func(player *Player) {
 		if damage > player.health {
 			player.health = 0
@@ -83,7 +83,7 @@ func (p *Player) Injure(damage uint, world *metaManager) {
 
 /// This should rarely be called, e.g. with Instakills
 /// Ordinarily, Injure should be called, which will call this if necessary
-func (p *Player) Kill(world *metaManager) {
+func (p *Player) Kill(world *World) {
 	p.Write(Red + "You have died." + Reset)
 	room, ok := world.rooms.GetById(p.Room)
 	if !ok {
@@ -173,7 +173,7 @@ func (m PlayerManager) ChangeById(id identifier, modify func(p *Player)) bool {
 
 /// @todo move this to MetaManager ? Player ?
 /// @todo change players and rooms to use Accessors rather than IDs; then this won't need the world.
-func (m PlayerManager) Move(player identifier, direction Direction, world *metaManager) bool {
+func (m PlayerManager) Move(player identifier, direction Direction, world *World) bool {
 	chainTime := <-NextChainTime
 	playerAccessor := ThingManager(m).GetThingAccessor(player)
 	for {

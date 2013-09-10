@@ -58,7 +58,7 @@ func (r Room) PrintDirections() string {
 	return buffer.String()
 }
 
-func (r Room) Print(world *metaManager, playerName string) string {
+func (r Room) Print(world *World, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -79,7 +79,7 @@ func (r Room) Print(world *metaManager, playerName string) string {
 }
 
 // print sans description
-func (r Room) PrintBrief(world *metaManager, playerName string) string {
+func (r Room) PrintBrief(world *World, playerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Red)
 	buffer.WriteString(r.name)
@@ -91,7 +91,7 @@ func (r Room) PrintBrief(world *metaManager, playerName string) string {
 	return buffer.String()
 }
 
-func (r Room) printItems(world *metaManager) string {
+func (r Room) printItems(world *World) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Blue)
 	buffer.WriteString("You see ")
@@ -146,7 +146,7 @@ func (r Room) printItems(world *metaManager) string {
 	return buffer.String()
 }
 
-func (r Room) printPlayers(world *metaManager, currentPlayerName string) string {
+func (r Room) printPlayers(world *World, currentPlayerName string) string {
 	var buffer bytes.Buffer
 	buffer.WriteString(Darkcyan)
 
