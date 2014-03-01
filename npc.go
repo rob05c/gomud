@@ -57,7 +57,7 @@ func (n *Npc) Animate(world *World) {
 		return
 	}
 	n.Sleeping = false
-	world.script.Eval(n.selfWrappedDna())
+//	world.script.Eval(n.selfWrappedDna())
 }
 
 type NpcManager ThingManager

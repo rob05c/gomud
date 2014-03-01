@@ -7,7 +7,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/mattn/go-v8"
+//	"github.com/mattn/go-v8"
 	"strconv"
 )
 
@@ -29,7 +29,7 @@ type World struct {
 	players *PlayerManager
 	items   *ItemManager
 	npcs    *NpcManager
-	script  *v8.V8Context
+//	script  *v8.V8Context
 	db      *sql.DB
 }
 
@@ -80,9 +80,9 @@ func NewWorld() *World {
 		rooms:   &rm,
 		npcs:    &nm,
 		items:   &im,
-		script:  nil,
+//		script:  nil,
 	}
-	world.script = initializeV8(world) // @todo fix this
+//	world.script = initializeV8(world) // @todo fix this
 	initDb(world)
 
 	_, exists := RoomManager(*world.rooms).GetById(0)
@@ -164,7 +164,7 @@ func debug() {
 
 func main() {
 	world := NewWorld()
-	world.script.Eval("mud_println('javascript engine running');")
+//	world.script.Eval("mud_println('javascript engine running');")
 	fmt.Println("version " + version)
 	listen(*world)
 }
