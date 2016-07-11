@@ -613,12 +613,15 @@ func drop(args []string, playerId identifier, world *World) bool {
 			item.LocationType = ilRoom
 			itemSet.it = item
 			itemBrief = item.Brief()
-		} else {
+		} else if dropType == piNpc {
 			npc := itemSet.it.(*Npc)
 			npc.Location = room.Id()
 			npc.LocationType = ilRoom
 			itemSet.it = npc
 			itemBrief = npc.Brief
+			npc.Animate(world)
+		} else {
+			panic("Unknown drop type (dev: you need to implement)")
 		}
 		player.Write("You drop " + itemBrief)
 		room.Write(ToProper(player.Name())+" drops "+itemBrief, *world.players, player.Name())

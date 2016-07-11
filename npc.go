@@ -11,6 +11,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/Shopify/go-lua"
 )
 
 /// Animation:
@@ -57,7 +58,11 @@ func (n *Npc) Animate(world *World) {
 		return
 	}
 	n.Sleeping = false
-//	world.script.Eval(n.selfWrappedDna())
+	fmt.Printf("Animating %s\n", n.id.String())
+	err := lua.DoString(world.script, n.Dna)
+	if err != nil {
+		fmt.Printf("npc.Animate error: %v\n", err)
+	}
 }
 
 type NpcManager ThingManager
