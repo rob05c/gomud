@@ -7,11 +7,11 @@ package main
 import (
 	"database/sql"
 	"fmt"
-//	"github.com/mattn/go-v8"
+	"github.com/Shopify/go-lua"
 	"strconv"
 )
 
-const version = `0.0.4`
+const version = `0.0.5`
 const defaultPort = 9241
 
 type identifier int32
@@ -29,7 +29,7 @@ type World struct {
 	players *PlayerManager
 	items   *ItemManager
 	npcs    *NpcManager
-//	script  *v8.V8Context
+	script  *lua.State
 	db      *sql.DB
 }
 
@@ -80,9 +80,9 @@ func NewWorld() *World {
 		rooms:   &rm,
 		npcs:    &nm,
 		items:   &im,
-//		script:  nil,
+		script:  nil,
 	}
-//	world.script = initializeV8(world) // @todo fix this
+	world.script = initLua(world)
 	initDb(world)
 
 	_, exists := RoomManager(*world.rooms).GetById(0)
@@ -164,7 +164,7 @@ func debug() {
 
 func main() {
 	world := NewWorld()
-//	world.script.Eval("mud_println('javascript engine running');")
+	//	world.script.Eval("mud_println('javascript engine running');")
 	fmt.Println("version " + version)
 	listen(*world)
 }
