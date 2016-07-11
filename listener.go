@@ -7,10 +7,10 @@ package main
 
 import (
 	"bytes"
-	"code.google.com/p/go.crypto/ripemd160"
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/scrypt"
 	"io"
 	"net"
 	"os"
@@ -49,13 +49,13 @@ func handleCreatingPlayerPassVerify(world World, c net.Conn, playerName string, 
 		c.Close()
 		return
 	}
-	saltedPass := make([]byte, len(salt)+len(newPass))
-	saltedPass = append(saltedPass, salt...)
-	saltedPass = append(saltedPass, newPass...)
 
-	h := ripemd160.New()
-	h.Write(saltedPass)
-	hashedPass := h.Sum(nil)
+	hashedPass, err := scrypt.Key([]byte(newPass), salt, 16384, 8, 1, 32)
+	if err != nil {
+		fmt.Println("Error creating salt.")
+		c.Close()
+		return
+	}
 
 	roomId := identifier(0)
 	newPlayer := Player{
@@ -124,17 +124,14 @@ func handleLoginPass(world World, c net.Conn, playerName string) {
 	if !exists {
 		return // we just validated the player exists, so this shouldn't happen
 	}
-	saltedPass := make([]byte, len(player.passthesalt)+len(pass))
-	saltedPass = append(saltedPass, player.passthesalt...)
-	saltedPass = append(saltedPass, pass...)
-	defer func() {
-		for i := range saltedPass {
-			saltedPass[i] = 0
-		}
-	}()
-	h := ripemd160.New()
-	h.Write(saltedPass)
-	hashedPass := h.Sum(nil)
+
+	hashedPass, err := scrypt.Key([]byte(pass), player.passthesalt, 16384, 8, 1, 32)
+	if err != nil {
+		fmt.Printf("Error creating hashed pass: %v\n", err)
+		c.Close()
+		return
+	}
+
 	if !bytes.Equal(hashedPass, player.pass) {
 		c.Write([]byte("Invalid password.\r\n"))
 		c.Close()
