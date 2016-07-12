@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/Shopify/go-lua"
+	"math/rand"
 	"strconv"
 	"time"
 )
@@ -13,6 +14,7 @@ func funcs(world *World, npcId identifier) map[string]lua.Function {
 		"gomud_println":     luaPrintln,
 		"gomud_roomPlayers": luaGetRoomPlayersFunc(world, npcId),
 		"gomud_reval":       luaRevalFunc(world, npcId),
+		"gomud_randomMove":  luaRandomMoveFunc(world, npcId),
 	}
 }
 
@@ -128,5 +130,84 @@ func luaGetRoomPlayersFunc(world *World, npcId identifier) lua.Function {
 
 		luaPushStrings(l, players)
 		return 1
+	}
+}
+
+// luaRandomMoveFunc moves the given NPC selfId in a random direction
+// example test lua:
+// gomud_randomMove(); gomud_reval()
+func luaRandomMoveFunc(world *World, selfId identifier) lua.Function {
+	return func(l *lua.State) int {
+		chainTime := <-NextChainTime
+		selfAccessor := ThingManager(*world.npcs).GetThingAccessor(selfId)
+		for {
+			sets := make([]SetterMsg, 0, 3)
+			selfSet, ok, resetChain := selfAccessor.TryGet(chainTime)
+			if !ok {
+				fmt.Println("luaRandomMove error getting self '" + selfId.String() + "'")
+				l.PushString("error: self not found")
+				l.Error() // panics
+			} else if resetChain {
+				continue
+			}
+			sets = append(sets, selfSet)
+
+			if selfSet.it.(*Npc).LocationType != ilRoom {
+				fmt.Println("luaRandomMove npc in nonroom  '" + selfId.String() + "'")
+				ReleaseThings(sets)
+				l.PushString("error: npc in nonroom")
+				l.Error() // panics
+			}
+
+			roomAccessor := ThingManager(*world.rooms).GetThingAccessor(selfSet.it.(*Npc).Location)
+			roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+			if !ok {
+				fmt.Println("luaRandomMove npc room not ok '" + selfId.String() + "'")
+				ReleaseThings(sets)
+				l.PushString("error: npc room not ok '" + selfId.String() + "'")
+				l.Error() // panics
+			} else if resetChain {
+				ReleaseThings(sets)
+				continue
+			}
+			sets = append(sets, roomSet)
+			room := roomSet.it.(*Room)
+			if len(room.Exits) == 0 {
+				// no exits, no way to move
+				ReleaseThings(sets)
+				return 0
+			}
+			var roomDirections []Direction
+			for k := range room.Exits {
+				roomDirections = append(roomDirections, k)
+			}
+			rand := rand.New(rand.NewSource(time.Now().UnixNano()))
+			randomDirectionIndex := rand.Int() % len(roomDirections)
+			randomDirection := roomDirections[randomDirectionIndex]
+			newRoomId := room.Exits[randomDirection]
+
+			newRoomAccessor := ThingManager(*world.rooms).GetThingAccessor(newRoomId)
+			newRoomSet, ok, resetChain := newRoomAccessor.TryGet(chainTime)
+			if !ok {
+				fmt.Println("luaRandomMove npc newRoom not ok '" + selfId.String() + "'")
+				ReleaseThings(sets)
+				l.PushString("luaRandomMove npc newRoom not ok '" + selfId.String() + "'")
+				l.Error() // panics
+			} else if resetChain {
+				ReleaseThings(sets)
+				continue
+			}
+			sets = append(sets, newRoomSet)
+			self := selfSet.it.(*Npc)
+			self.Location = newRoomId
+			selfSet.it = self
+			delete(roomSet.it.(*Room).Items, selfId)
+			newRoomSet.it.(*Room).Items[selfId] = piNpc
+			newRoomSet.it.(*Room).Write(self.Brief+" enters from the "+randomDirection.reverse().String(), *world.players, "") //@todo add item-specific message
+			roomSet.it.(*Room).Write(self.Brief+" moves out to the "+randomDirection.String(), *world.players, "")             //@todo add item-specific message
+			ReleaseThings(sets)
+			break
+		}
+		return 0
 	}
 }
