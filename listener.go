@@ -181,7 +181,7 @@ func handlePlayer(world World, playerId identifier) {
 		return
 	}
 	player.Write("Welcome " + ToProper(player.Name()) + "!")
-	look(playerId, &world)
+	look([]string{}, playerId, &world)
 
 	for {
 		message, error := getString(player.connection)

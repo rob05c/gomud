@@ -19,7 +19,9 @@ import (
 
 const commandRejectMessage = "I don't understand."
 
-var commands = map[string]func([]string, identifier, *World){}
+type CommandFunc func([]string, identifier, *World)
+
+var commands = map[string]CommandFunc{}
 
 func ToProper(player string) string {
 	if len(player) == 0 {
@@ -53,7 +55,11 @@ func tryPlayerWrite(playerId identifier, players *PlayerManager, message string,
 	return true
 }
 
-func say(message string, playerId identifier, world *World) {
+func say(args []string, playerId identifier, world *World) {
+	sayMsg(strings.Join(args, " "), playerId, world)
+}
+
+func sayMsg(message string, playerId identifier, world *World) {
 	if len(message) == 0 {
 		return
 	}
@@ -76,7 +82,16 @@ func say(message string, playerId identifier, world *World) {
 	go player.Write(selfMessage)
 }
 
-func tell(message string, playerId identifier, telleePlayer string, world *World) {
+func tell(args []string, playerId identifier, world *World) {
+	if len(args) < 2 {
+		return
+	}
+	tellee := args[0]
+	args = args[1:]
+	tellMsg(strings.Join(args, " "), playerId, tellee, world)
+}
+
+func tellMsg(message string, playerId identifier, telleePlayer string, world *World) {
 	if len(message) == 0 {
 		return
 	}
@@ -105,6 +120,38 @@ func tell(message string, playerId identifier, telleePlayer string, world *World
 	go player.Write(tellerMessage)
 }
 
+func walkSouth(args []string, playerId identifier, world *World) {
+	walk(south, playerId, world)
+}
+
+func walkNorth(args []string, playerId identifier, world *World) {
+	walk(north, playerId, world)
+}
+
+func walkEast(args []string, playerId identifier, world *World) {
+	walk(west, playerId, world)
+}
+
+func walkWest(args []string, playerId identifier, world *World) {
+	walk(west, playerId, world)
+}
+
+func walkNortheast(args []string, playerId identifier, world *World) {
+	walk(northeast, playerId, world)
+}
+
+func walkNorthwest(args []string, playerId identifier, world *World) {
+	walk(northwest, playerId, world)
+}
+
+func walkSoutheast(args []string, playerId identifier, world *World) {
+	walk(southeast, playerId, world)
+}
+
+func walkSouthwest(args []string, playerId identifier, world *World) {
+	walk(southwest, playerId, world)
+}
+
 func walk(d Direction, playerId identifier, world *World) {
 	_, exists := world.players.GetById(playerId)
 	if !exists {
@@ -114,7 +161,7 @@ func walk(d Direction, playerId identifier, world *World) {
 	world.players.Move(playerId, d, world)
 }
 
-func look(playerId identifier, world *World) {
+func look(args []string, playerId identifier, world *World) {
 	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("look called with invalid player id '" + playerId.String() + "'")
@@ -129,7 +176,7 @@ func look(playerId identifier, world *World) {
 	}
 }
 
-func quicklook(playerId identifier, world *World) {
+func quicklook(args []string, playerId identifier, world *World) {
 	player, exists := world.players.GetById(playerId)
 	if !exists {
 		fmt.Println("quicklook called with invalid player " + playerId.String())
@@ -152,7 +199,7 @@ func makeRoom(direction Direction, name string, playerId identifier, world *Worl
 		things := make([]SetterMsg, 0, 2)
 		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
 		if !ok {
-			fmt.Println("connectRoom error: player chan closed " + playerId.String())
+			fmt.Println("makeRoom error: player chan closed " + playerId.String())
 			return
 		} else if resetChain {
 			continue
@@ -187,16 +234,16 @@ func makeRoom(direction Direction, name string, playerId identifier, world *Worl
 	}
 }
 
-func connectRoom(args []string, playerId identifier, world *World) bool {
+func connectRoom(args []string, playerId identifier, world *World) {
 	chainTime := <-NextChainTime
 	if len(args) < 2 {
 		tryPlayerWrite(playerId, world.players, "What do you want to connect?", "connectroom error: insufficient args and no player")
-		return false
+		return // false
 	}
 	toConnectRoomIdInt, err := strconv.Atoi(args[1])
 	if err != nil {
 		tryPlayerWrite(playerId, world.players, "What do you want to connect?", "connectroom error: invalid roomid and no player")
-		return false
+		return // false
 	}
 	toConnectRoomId := identifier(toConnectRoomIdInt)
 	connectRoomAccessor := ThingManager(*world.rooms).GetThingAccessor(toConnectRoomId)
@@ -204,7 +251,7 @@ func connectRoom(args []string, playerId identifier, world *World) bool {
 	newRoomDirection := stringToDirection(args[0])
 	if newRoomDirection == -1 {
 		tryPlayerWrite(playerId, world.players, "What direction do you want to connect?", "connectroom error: invalid direction and no player")
-		return false
+		return // false
 	}
 
 	playerAccessor := ThingManager(*world.players).GetThingAccessor(playerId)
@@ -213,7 +260,7 @@ func connectRoom(args []string, playerId identifier, world *World) bool {
 		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
 		if !ok {
 			fmt.Println("connectRoom error: player chan closed " + playerId.String())
-			return false
+			return // false
 		} else if resetChain {
 			continue
 		}
@@ -223,7 +270,7 @@ func connectRoom(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			fmt.Println("PlayerManager.Move error: room chan closed " + playerId.String())
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			ReleaseThings(sets)
 			continue
@@ -233,7 +280,7 @@ func connectRoom(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			fmt.Println("PlayerManager.Move error: room chan closed " + playerId.String())
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			ReleaseThings(sets)
 			continue
@@ -246,13 +293,13 @@ func connectRoom(args []string, playerId identifier, world *World) bool {
 		ReleaseThings(sets)
 		break
 	}
-	return true
+	return // true
 }
 
-func describeRoom(args []string, playerId identifier, world *World) bool {
+func describeRoom(args []string, playerId identifier, world *World) {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, commandRejectMessage, "describeRoom called with invalid player")
-		return false
+		return // false
 	}
 
 	chainTime := <-NextChainTime
@@ -262,7 +309,7 @@ func describeRoom(args []string, playerId identifier, world *World) bool {
 		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
 		if !ok {
 			fmt.Println("describeroom error: player chan closed " + playerId.String())
-			return false
+			return // false
 		} else if resetChain {
 			continue
 		}
@@ -272,7 +319,7 @@ func describeRoom(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			fmt.Println("describeroom error: room chan closed " + playerId.String())
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			ReleaseThings(sets)
 			continue
@@ -286,7 +333,7 @@ func describeRoom(args []string, playerId identifier, world *World) bool {
 		ReleaseThings(sets)
 		break
 	}
-	return true
+	return // true
 }
 
 func RoomId(args []string, playerId identifier, world *World) {
@@ -405,12 +452,12 @@ func describeItem(args []string, playerId identifier, world *World) {
 	})
 }
 
-func get(args []string, playerId identifier, world *World) bool {
+func get(args []string, playerId identifier, world *World) {
 	const notHereMsg = "That is not here."
 	const cantGetMsg = "You can't pick that up."
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "What do you want to get?", "get called with invalid params")
-		return false
+		return // false
 	}
 
 	chainTime := <-NextChainTime
@@ -420,7 +467,7 @@ func get(args []string, playerId identifier, world *World) bool {
 		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
 		if !ok {
 			fmt.Println("get error: player chan closed " + playerId.String())
-			return false
+			return // false
 		} else if resetChain {
 			//			fmt.Println("chain prempted: looping " + playerId.String())
 			continue
@@ -433,7 +480,7 @@ func get(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			fmt.Println("get error: room chan closed " + player.Id().String() + " room " + roomId.String())
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			//			fmt.Println("chain prempted: looping " + playerId.String())
 			ReleaseThings(sets)
@@ -449,11 +496,11 @@ func get(args []string, playerId identifier, world *World) bool {
 			if !ok {
 				tryPlayerWrite(playerId, world.players, notHereMsg, "get called with invalid id")
 				ReleaseThings(sets)
-				return false
+				return // false
 			} else if itemType != piItem {
 				tryPlayerWrite(playerId, world.players, cantGetMsg, "get called with nonitem")
 				ReleaseThings(sets)
-				return false
+				return // false
 			}
 		} else {
 			found := false
@@ -481,7 +528,7 @@ func get(args []string, playerId identifier, world *World) bool {
 					tryPlayerWrite(playerId, world.players, notHereMsg, "get player failed to write")
 				}
 				ReleaseThings(sets)
-				return false
+				return // false
 			}
 		}
 
@@ -490,7 +537,7 @@ func get(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			tryPlayerWrite(playerId, world.players, notHereMsg, "get error: item chan closed")
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			ReleaseThings(sets)
 			continue
@@ -508,13 +555,13 @@ func get(args []string, playerId identifier, world *World) bool {
 		ReleaseThings(sets)
 		break
 	}
-	return true
+	return // true
 }
 
-func drop(args []string, playerId identifier, world *World) bool {
+func drop(args []string, playerId identifier, world *World) {
 	if len(args) < 1 {
 		tryPlayerWrite(playerId, world.players, "What do you want to drop?", "drop called with invalid params")
-		return false
+		return // false
 	}
 
 	chainTime := <-NextChainTime
@@ -524,7 +571,7 @@ func drop(args []string, playerId identifier, world *World) bool {
 		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
 		if !ok {
 			fmt.Println("drop error: player chan closed " + playerId.String())
-			return false
+			return // false
 		} else if resetChain {
 			//			fmt.Println("drop prempted: looping " + playerId.String())
 			continue
@@ -536,7 +583,7 @@ func drop(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			fmt.Println("drop error: room chan closed " + playerId.String())
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			ReleaseThings(sets)
 			continue
@@ -551,7 +598,7 @@ func drop(args []string, playerId identifier, world *World) bool {
 			if !ok {
 				tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop called with invalid id")
 				ReleaseThings(sets)
-				return false
+				return // false
 			}
 
 		} else {
@@ -581,7 +628,7 @@ func drop(args []string, playerId identifier, world *World) bool {
 			if !found {
 				tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop player failed to write")
 				ReleaseThings(sets)
-				return false
+				return // false
 			}
 		}
 
@@ -595,7 +642,7 @@ func drop(args []string, playerId identifier, world *World) bool {
 		if !ok {
 			tryPlayerWrite(playerId, world.players, "You aren't holding that.", "drop error: item chan closed")
 			ReleaseThings(sets)
-			return false
+			return // false
 		} else if resetChain {
 			ReleaseThings(sets)
 			continue
@@ -628,7 +675,7 @@ func drop(args []string, playerId identifier, world *World) bool {
 		ReleaseThings(sets)
 		break
 	}
-	return true
+	return // true
 }
 
 func items(args []string, playerId identifier, world *World) {
@@ -772,7 +819,7 @@ func inventory(args []string, playerId identifier, world *World) {
 	})
 }
 
-func help(playerId identifier, world *World) {
+func help(args []string, playerId identifier, world *World) {
 	s := "movement\r\n" +
 		"------------------------------\r\n" +
 		"To move in a direction, simply type the cardinal direction you wish to move in, e.g. 'north'. Shortcuts also work, e.g. 'n'.\r\n" +
@@ -822,176 +869,96 @@ func help(playerId identifier, world *World) {
 	tryPlayerWrite(playerId, world.players, s, "help error: player chan closed")
 }
 
-func initCommandsAdmin() {
-	commands["makeroom"] = func(args []string, playerId identifier, world *World) {
-		if len(args) < 2 {
-			player, exists := world.players.GetById(playerId)
-			if !exists {
-				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
-				return
-			}
-			player.Write(commandRejectMessage + "3") ///< @todo give better error
+func makeroom(args []string, playerId identifier, world *World) {
+	if len(args) < 2 {
+		player, exists := world.players.GetById(playerId)
+		if !exists {
+			fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 			return
 		}
-		newRoomDirection := stringToDirection(args[0])
-		if newRoomDirection < north || newRoomDirection > southwest {
-			player, exists := world.players.GetById(playerId)
-			if !exists {
-				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
-				return
-			}
-			player.Write(commandRejectMessage + "4") ///< @todo give better error
+		player.Write(commandRejectMessage + "3") ///< @todo give better error
+		return
+	}
+	newRoomDirection := stringToDirection(args[0])
+	if newRoomDirection < north || newRoomDirection > southwest {
+		player, exists := world.players.GetById(playerId)
+		if !exists {
+			fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 			return
 		}
-		newRoomName := strings.Join(args[1:], " ")
-		if len(newRoomName) == 0 {
-			player, exists := world.players.GetById(playerId)
-			if !exists {
-				fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
-				return
-			}
-			player.Write(commandRejectMessage + "5") ///< @todo give better error
+		player.Write(commandRejectMessage + "4") ///< @todo give better error
+		return
+	}
+	newRoomName := strings.Join(args[1:], " ")
+	if len(newRoomName) == 0 {
+		player, exists := world.players.GetById(playerId)
+		if !exists {
+			fmt.Println("makeRoom error: getPlayer got nonexistent player " + playerId.String())
 			return
 		}
-		makeRoom(newRoomDirection, newRoomName, playerId, world)
+		player.Write(commandRejectMessage + "5") ///< @todo give better error
+		return
 	}
-	commands["mr"] = commands["makeroom"]
-
-	commands["connectroom"] = func(args []string, playerId identifier, world *World) {
-		connectRoom(args, playerId, world)
-	}
-	commands["cr"] = commands["connectroom"]
-
-	commands["describeroom"] = func(args []string, playerId identifier, world *World) {
-		describeRoom(args, playerId, world)
-	}
-	commands["dr"] = commands["describeroom"]
-
-	commands["roomid"] = func(args []string, playerId identifier, world *World) {
-		RoomId(args, playerId, world)
-	}
-
-	commands["createitem"] = func(args []string, playerId identifier, world *World) {
-		createItem(args, playerId, world)
-	}
-	commands["ci"] = commands["createitem"]
-
-	commands["createnpc"] = func(args []string, playerId identifier, world *World) {
-		createNpc(args, playerId, world)
-	}
-	commands["cn"] = commands["createnpc"]
-
-	commands["describeitem"] = func(args []string, playerId identifier, world *World) {
-		describeItem(args, playerId, world)
-	}
-	commands["di"] = commands["describeitem"]
-
-	commands["describenpc"] = func(args []string, playerId identifier, world *World) {
-		describeNpc(args, playerId, world)
-	}
-	commands["dn"] = commands["describenpc"]
-
-	commands["animate"] = func(args []string, playerId identifier, world *World) {
-		animate(args, playerId, world)
-	}
-	commands["an"] = commands["animate"]
-	commands["help"] = func(args []string, playerId identifier, world *World) {
-		help(playerId, world)
-	}
-	commands["?"] = commands["help"]
-}
-
-func initCommandsDirections() {
-	commands["south"] = func(args []string, playerId identifier, world *World) {
-		walk(south, playerId, world)
-	}
-	commands["s"] = commands["south"]
-	commands["north"] = func(args []string, playerId identifier, world *World) {
-		walk(north, playerId, world)
-	}
-	commands["n"] = commands["north"]
-	commands["east"] = func(args []string, playerId identifier, world *World) {
-		walk(east, playerId, world)
-	}
-	commands["e"] = commands["east"]
-	commands["west"] = func(args []string, playerId identifier, world *World) {
-		walk(west, playerId, world)
-	}
-	commands["w"] = commands["west"]
-	commands["northeast"] = func(args []string, playerId identifier, world *World) {
-		walk(northeast, playerId, world)
-	}
-	commands["ne"] = commands["northeast"]
-	commands["northwest"] = func(args []string, playerId identifier, world *World) {
-		walk(northwest, playerId, world)
-	}
-	commands["nw"] = commands["northwest"]
-	commands["southeast"] = func(args []string, playerId identifier, world *World) {
-		walk(southeast, playerId, world)
-	}
-	commands["se"] = commands["southeast"]
-	commands["southwest"] = func(args []string, playerId identifier, world *World) {
-		walk(southwest, playerId, world)
-	}
-	commands["sw"] = commands["southwest"]
-}
-
-func initCommandsItems() {
-	commands["get"] = func(args []string, playerId identifier, world *World) {
-		get(args, playerId, world)
-	}
-	commands["g"] = commands["get"]
-	commands["drop"] = func(args []string, playerId identifier, world *World) {
-		drop(args, playerId, world)
-	}
-
-	commands["items"] = func(args []string, playerId identifier, world *World) {
-		items(args, playerId, world)
-	}
-	commands["ii"] = commands["items"]
-
-	commands["inventory"] = func(args []string, playerId identifier, world *World) {
-		inventory(args, playerId, world)
-	}
-	commands["inv"] = commands["inventory"]
-	commands["i"] = commands["inventory"]
-
-	commands["itemshere"] = func(args []string, playerId identifier, world *World) {
-		itemsHere(args, playerId, world)
-	}
-	commands["ih"] = commands["itemshere"]
-
-}
-
-func initCommandsBasic() {
-	commands["look"] = func(args []string, playerId identifier, world *World) {
-		look(playerId, world)
-	}
-	commands["l"] = commands["look"]
-
-	commands["quicklook"] = func(args []string, playerId identifier, world *World) {
-		quicklook(playerId, world)
-	}
-	commands["ql"] = commands["quicklook"]
-
-	commands["say"] = func(args []string, playerId identifier, world *World) {
-		say(strings.Join(args, " "), playerId, world)
-	}
-	commands["'"] = commands["say"]
-
-	commands["tell"] = func(args []string, playerId identifier, world *World) {
-		if len(args) < 2 {
-			return
-		}
-		tellee := args[0]
-		args = args[1:]
-		tell(strings.Join(args, " "), playerId, tellee, world)
-	}
+	makeRoom(newRoomDirection, newRoomName, playerId, world)
 }
 
 func initCommands() {
-	initCommandsBasic()
-	initCommandsDirections()
-	initCommandsItems()
-	initCommandsAdmin()
+	commands = map[string]CommandFunc{
+		// admin
+		"makeroom":     makeroom,
+		"mr":           makeroom,
+		"connectroom":  connectRoom,
+		"cr":           connectRoom,
+		"describeroom": describeRoom,
+		"dr":           describeRoom,
+		"roomid":       RoomId,
+		"createitem":   createItem,
+		"ci":           createItem,
+		"createnpc":    createNpc,
+		"cn":           createNpc,
+		"describeitem": describeItem,
+		"di":           describeItem,
+		"describenpc":  describeNpc,
+		"dn":           describeNpc,
+		"animate":      animate,
+		"an":           animate,
+		"help":         help,
+		"?":            help,
+		// directions
+		"south":     walkSouth,
+		"s":         walkSouth,
+		"north":     walkNorth,
+		"n":         walkNorth,
+		"east":      walkEast,
+		"e":         walkEast,
+		"west":      walkWest,
+		"w":         walkWest,
+		"northeast": walkNortheast,
+		"ne":        walkNortheast,
+		"northwest": walkNorthwest,
+		"nw":        walkNorthwest,
+		"southeast": walkSoutheast,
+		"se":        walkSoutheast,
+		"southwest": walkSouthwest,
+		"sw":        walkSouthwest,
+		// items
+		"get":       get,
+		"g":         get,
+		"drop":      drop,
+		"items":     items,
+		"ii":        items,
+		"inventory": inventory,
+		"inv":       inventory,
+		"i":         inventory,
+		"itemshere": itemsHere,
+		"ih":        itemsHere,
+		// basic commands
+		"look":      look,
+		"l":         look,
+		"quicklook": quicklook,
+		"ql":        quicklook,
+		"say":       say,
+		"'":         say,
+		"tell":      tell,
+	}
 }
