@@ -58,11 +58,13 @@ func (n *Npc) Animate(world *World) {
 		return
 	}
 	n.Sleeping = false
-	fmt.Printf("Animating %s\n", n.id.String())
-	err := lua.DoString(world.script, n.Dna)
-	if err != nil {
-		fmt.Printf("npc.Animate error: %v\n", err)
-	}
+	go func() {
+		fmt.Printf("Animating %s\n", n.id.String())
+		err := lua.DoString(initLua(world), n.Dna)
+		if err != nil {
+			fmt.Printf("npc.Animate error with %s: %v\n", n.id.String(), err)
+		}
+	}()
 }
 
 type NpcManager ThingManager

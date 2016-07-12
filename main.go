@@ -7,7 +7,6 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/Shopify/go-lua"
 	"strconv"
 )
 
@@ -29,7 +28,6 @@ type World struct {
 	players *PlayerManager
 	items   *ItemManager
 	npcs    *NpcManager
-	script  *lua.State
 	db      *sql.DB
 }
 
@@ -80,9 +78,7 @@ func NewWorld() *World {
 		rooms:   &rm,
 		npcs:    &nm,
 		items:   &im,
-		script:  nil,
 	}
-	world.script = initLua(world)
 	initDb(world)
 
 	_, exists := RoomManager(*world.rooms).GetById(0)
