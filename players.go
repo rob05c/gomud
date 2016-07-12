@@ -13,8 +13,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-
-//	 "runtime/debug"
+	//	 "runtime/debug"
 )
 
 type PlayerItemType int32
@@ -79,6 +78,22 @@ func (p *Player) Injure(damage uint, world *World) {
 			go player.Kill(world) // This MUST be in a goroutine; the playerManager CANNOT be called in its own routine
 		}
 	})
+}
+
+func (p *Player) InjureAlreadyGot(damage uint, world *World, playerSet SetterMsg) error {
+	player, ok := playerSet.it.(*Player)
+	if !ok {
+		return fmt.Errorf("InjureAlreadyGot error: setterMsg was not a *Player")
+	}
+	if damage > player.health {
+		player.health = 0
+	} else {
+		player.health -= damage
+	}
+	if player.health == 0 {
+		go player.Kill(world) // This MUST be in a goroutine; the playerManager CANNOT be called in its own routine
+	}
+	return nil
 }
 
 /// This should rarely be called, e.g. with Instakills

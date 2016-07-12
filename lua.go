@@ -11,11 +11,12 @@ import (
 // funcs returns a map of lua.Functions to be registered, creating closures with the world and npc.
 func funcs(world *World, npcId identifier) map[string]lua.Function {
 	return map[string]lua.Function{
-		"gomud_println":     luaPrintln,
-		"gomud_roomPlayers": luaGetRoomPlayersFunc(world, npcId),
-		"gomud_reval":       luaRevalFunc(world, npcId),
-		"gomud_randomMove":  luaRandomMoveFunc(world, npcId),
-		"gomud_getPlayer":   luaGetPlayerFunc(world, npcId),
+		"gomud_println":      luaPrintln,
+		"gomud_roomPlayers":  luaGetRoomPlayersFunc(world, npcId),
+		"gomud_reval":        luaRevalFunc(world, npcId),
+		"gomud_randomMove":   luaRandomMoveFunc(world, npcId),
+		"gomud_getPlayer":    luaGetPlayerFunc(world, npcId),
+		"gomud_attackPlayer": luaAttackPlayerFunc(world, npcId),
 	}
 }
 
@@ -264,5 +265,113 @@ func luaGetPlayerFunc(world *World, npcId identifier) lua.Function {
 
 		luaPushPlayer(l, player)
 		return 1
+	}
+}
+
+// luaAttackPlayerFunc attacks the given player with the given damage
+// Parameters:
+//   playerName string
+//   baseDamage integer
+// Example test lua:
+//   gomud_attackPlayer("rob", 42)
+// TODO return damage done?
+// TODO add custom attack message
+// TODO add damage type
+func luaAttackPlayerFunc(world *World, npcId identifier) lua.Function {
+	return func(l *lua.State) int {
+		n := l.Top() // Number of arguments.
+		if n != 2 {
+			fmt.Println("luaAttackPlayerFunc error incorrect number of arguments, expected 2 got " + strconv.Itoa(n))
+			l.PushString("incorrect number of arguments: expected 2 got " + strconv.Itoa(n))
+			l.Error() // panics
+		}
+
+		playerName, ok := l.ToString(1)
+		if !ok {
+			fmt.Println("luaAttackPlayerFunc error argument 1 expected string")
+			l.PushString("incorrect argument 1: expected string")
+			l.Error() // panics
+		}
+
+		baseDamage, ok := l.ToInteger(2)
+		if !ok {
+			fmt.Println("luaAttackPlayerFunc error argument 1 expected integer")
+			l.PushString("incorrect argument 2: expected integer")
+			l.Error() // panics
+		}
+
+		if baseDamage < 0 {
+			fmt.Println("luaAttackPlayerFunc error base damage expected positive, actual " + strconv.Itoa(n))
+			l.PushString("incorrect argument 2: expected integer greater than zero")
+			l.Error() // panics
+		}
+
+		chainTime := <-NextChainTime
+		playerAccessor := ThingManager(*world.players).GetThingAccessorByName(playerName)
+
+		for {
+			sets := make([]SetterMsg, 0, 3)
+			playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+			if !ok {
+				fmt.Println("luaAttackPlayerFunc player not found: " + playerName)
+				l.PushString("player not found: " + playerName)
+				l.Error() // panics
+			} else if resetChain {
+				continue
+			}
+			sets = append(sets, playerSet)
+
+			npcAccessor := ThingManager(*world.npcs).GetThingAccessor(npcId)
+			npcSet, ok, resetChain := npcAccessor.TryGet(chainTime)
+			if !ok {
+				fmt.Println("luaAttackPlayerFunc npcId not found: " + npcId.String())
+				ReleaseThings(sets)
+				l.PushString("npc not found: " + npcId.String())
+				l.Error() // panics
+			} else if resetChain {
+				ReleaseThings(sets)
+				continue
+			}
+			sets = append(sets, npcSet)
+
+			if npcSet.it.(*Npc).LocationType != ilRoom {
+				fmt.Println("luaAttackPlayerFunc npcId location not room")
+				ReleaseThings(sets)
+				l.PushString("npc not in a room, can only attack from a room: " + npcId.String())
+				l.Error() // panics
+			}
+
+			roomAccessor := ThingManager(*world.rooms).GetThingAccessor(npcSet.it.(*Npc).Location)
+			roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+			if !ok {
+				fmt.Println("luaAttackPlayerFunc npcId failed to get room")
+				ReleaseThings(sets)
+				l.PushString("Failed to get npc room: " + npcId.String())
+				l.Error() // panics
+			} else if resetChain {
+				ReleaseThings(sets)
+				continue
+			}
+			sets = append(sets, roomSet)
+			if playerSet.it.(*Player).Room != roomSet.it.Id() {
+				fmt.Println("luaAttackPlayerFunc npcId failed to get player room")
+				ReleaseThings(sets)
+				l.PushString("Failed to get player room: " + playerName)
+				l.Error() // panics
+			}
+			err := playerSet.it.(*Player).InjureAlreadyGot(uint(baseDamage), world, playerSet)
+			if err != nil {
+				fmt.Println("luaAttackPlayerFunc InjureAlreadyGot error: " + err.Error())
+				ReleaseThings(sets)
+				l.PushString("Failed to injure player " + playerName + ": " + err.Error())
+				l.Error() // panics
+			}
+
+			playerSet.it.(*Player).Write(npcSet.it.(*Npc).Brief + " attacks you viciously.")
+			roomSet.it.(*Room).Write(npcSet.it.(*Npc).Brief+" attacks "+playerName+" viciously.", *world.players, playerName)
+			ReleaseThings(sets)
+			break
+		}
+		return 0
 	}
 }
