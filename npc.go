@@ -60,7 +60,7 @@ func (n *Npc) Animate(world *World) {
 	n.Sleeping = false
 	go func() {
 		fmt.Printf("Animating %s\n", n.id.String())
-		err := lua.DoString(initLua(world), n.Dna)
+		err := lua.DoString(initLua(world, n.id), n.Dna)
 		if err != nil {
 			fmt.Printf("npc.Animate error with %s: %v\n", n.id.String(), err)
 		}
