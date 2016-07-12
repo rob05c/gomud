@@ -15,6 +15,7 @@ func funcs(world *World, npcId identifier) map[string]lua.Function {
 		"gomud_roomPlayers": luaGetRoomPlayersFunc(world, npcId),
 		"gomud_reval":       luaRevalFunc(world, npcId),
 		"gomud_randomMove":  luaRandomMoveFunc(world, npcId),
+		"gomud_getPlayer":   luaGetPlayerFunc(world, npcId),
 	}
 }
 
@@ -31,10 +32,12 @@ func initLua(world *World, id identifier) *lua.State {
 // luaRevalFunc takes a wait time in milliseconds from the script,
 // and re-executes the npc.Animate after the wait time.
 // Scripts should call this at the end of their animation right before returning.
+// Parameters:
+//   milliseconds integer
+// Example test lua:
+//   gomud_println("bill is here. You should feel honoured."); gomud_reval(1000)
 // TODO add a min and max cap, possibly allowing admins to create NPCs under the min cap.
 // TODO find a way to prevent users calling reval() and not returning (because that would have 2 threads accessing lua.State, and it's not threadsafe)
-// example test lua:
-// gomud_println("bill is here. You should feel honoured."); gomud_reval(1000)
 func luaRevalFunc(world *World, npcId identifier) lua.Function {
 	return func(l *lua.State) int {
 		n := l.Top() // Number of arguments.
@@ -74,8 +77,10 @@ func luaPushStrings(l *lua.State, ss []string) {
 }
 
 // luaPrintln prints a string to the Server console. Used for server debugging. NPC scripters should not call this, and it should not be in the user-facing help.
-// example test lua:
-// gomud_println("Hallo, Welt!")
+// Parameters:
+//   text string
+// Example test lua:
+//   gomud_println("Hallo, Welt!")
 func luaPrintln(l *lua.State) int {
 	n := l.Top() // Number of arguments.
 	if n != 1 {
@@ -95,8 +100,9 @@ func luaPrintln(l *lua.State) int {
 }
 
 // luaGetRoomPlayers returns/pushes an array/table of the players in the room with the given npc
-// example test lua:
-// players = gomud_roomPlayers(); for i,player in pairs(players) do gomud_println(player) end
+// Parameters: (none)
+// Example test lua:
+//   players = gomud_roomPlayers(); for i,player in pairs(players) do gomud_println(player) end
 func luaGetRoomPlayersFunc(world *World, npcId identifier) lua.Function {
 	return func(l *lua.State) int {
 		self, ok := world.npcs.GetById(npcId)
@@ -134,8 +140,9 @@ func luaGetRoomPlayersFunc(world *World, npcId identifier) lua.Function {
 }
 
 // luaRandomMoveFunc moves the given NPC selfId in a random direction
-// example test lua:
-// gomud_randomMove(); gomud_reval()
+// Parameters: (none)
+// Example test lua:
+//   gomud_randomMove(); gomud_reval(1000)
 func luaRandomMoveFunc(world *World, selfId identifier) lua.Function {
 	return func(l *lua.State) int {
 		chainTime := <-NextChainTime
@@ -209,5 +216,53 @@ func luaRandomMoveFunc(world *World, selfId identifier) lua.Function {
 			break
 		}
 		return 0
+	}
+}
+
+// luaPushPlayer pushes a Player object (table) to the stack (function return)
+func luaPushPlayer(l *lua.State, player *Player) {
+	l.NewTable()
+
+	l.PushString("id")
+	l.PushInteger(int(player.Id()))
+	l.SetTable(-3)
+
+	l.PushString("name")
+	l.PushString(player.Name())
+	l.SetTable(-3)
+}
+
+// luaGetPlayerFunc returns a Player object for the requested player name.
+// Parameters:
+//   name string
+// Example test lua:
+//   player = gomud_getPlayer("rob"); gomud_println(player.name .. "'s ID is " .. player.id)
+func luaGetPlayerFunc(world *World, npcId identifier) lua.Function {
+	return func(l *lua.State) int {
+		n := l.Top() // Number of arguments.
+		if n != 1 {
+			l.PushString("incorrect number of arguments: expected 1 got " + strconv.Itoa(n))
+			l.Error() // panics
+		}
+
+		playerName, ok := l.ToString(1)
+		if !ok {
+			l.PushString("incorrect argument: expected string")
+			l.Error() // panics
+		}
+
+		if len(playerName) < 3 {
+			l.PushString("player name too short: " + playerName)
+			l.Error() // panics
+		}
+
+		player, ok := world.players.GetByName(playerName)
+		if !ok {
+			l.PushString("player not found: " + playerName)
+			l.Error() // panics
+		}
+
+		luaPushPlayer(l, player)
+		return 1
 	}
 }
