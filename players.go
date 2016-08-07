@@ -188,59 +188,71 @@ func (m PlayerManager) ChangeById(id identifier, modify func(p *Player)) bool {
 
 /// @todo move this to MetaManager ? Player ?
 /// @todo change players and rooms to use Accessors rather than IDs; then this won't need the world.
-func (m PlayerManager) Move(player identifier, direction Direction, world *World) bool {
-	chainTime := <-NextChainTime
-	playerAccessor := ThingManager(m).GetThingAccessor(player)
-	for {
-		sets := make([]SetterMsg, 0, 3)
-		playerSet, ok, resetChain := playerAccessor.TryGet(chainTime)
+func (m PlayerManager) Move(playerId identifier, direction Direction, world *World) bool {
+	getPlayer := func(data Got) (*ToGet, error) {
+		return PlayerGet(playerId), nil
+	}
+
+	getPlayerRoom := func(data Got) (*ToGet, error) {
+		player, ok := data.players[playerId]
 		if !ok {
-			fmt.Println("PlayerManager.Move error: room chan closed " + player.String())
-			return false
-		} else if resetChain {
-			continue
+			return nil, fmt.Errorf("Error moving player %v: not returned from manager!", playerId)
 		}
-		sets = append(sets, playerSet)
-		roomAccessor := ThingManager(*world.rooms).GetThingAccessor(playerSet.it.(*Player).Room)
-		roomSet, ok, resetChain := roomAccessor.TryGet(chainTime)
+		roomId := player.Room
+		return RoomGet(roomId), nil
+	}
+
+	getRoomRoom := func(data Got) (*ToGet, error) {
+		player, ok := data.players[playerId]
 		if !ok {
-			fmt.Println("PlayerManager.Move error: room chan closed " + player.String())
-			ReleaseThings(sets)
-			return false
-		} else if resetChain {
-			ReleaseThings(sets)
-			continue
+			return nil, fmt.Errorf("Error moving player %v: not returned from manager!", playerId)
 		}
-		sets = append(sets, roomSet)
-		newRoomId, ok := roomSet.it.(*Room).Exits[direction]
+		room, ok := data.rooms[player.Room]
 		if !ok {
-			playerSet.it.(*Player).Write("There is no exit in that direction.") // @todo ? should callers write this?
-			ReleaseThings(sets)
-			return false
+			return nil, fmt.Errorf("Error moving player %v: room %v not returned from manager!", playerId, player.Room)
 		}
-		newRoomAccessor := ThingManager(*world.rooms).GetThingAccessor(newRoomId)
-		newRoomSet, ok, resetChain := newRoomAccessor.TryGet(chainTime)
+		newRoomId, ok := room.Exits[direction]
 		if !ok {
-			fmt.Println("PlayerManager.Move error: new room chan closed " + player.String())
-			ReleaseThings(sets)
-			return false
-		} else if resetChain {
-			ReleaseThings(sets)
-			continue
+			player.Write("The way is shut.")
+			// TODO change to standard error variable, which caller can check
+			return nil, fmt.Errorf("Error moving player %v room %v: no room %v!", playerId, player.Room, direction)
 		}
-		sets = append(sets, newRoomSet)
-		player := playerSet.it.(*Player)
-		room := roomSet.it.(*Room)
-		newRoom := newRoomSet.it.(*Room)
-		player.Room = newRoomId
+		return RoomGet(newRoomId), nil
+	}
+
+	move := func(data Got) (*ToGet, error) {
+		player, ok := data.players[playerId]
+		if !ok {
+			return nil, fmt.Errorf("Error moving player %v: not returned from manager!", playerId)
+		}
+		room, ok := data.rooms[player.Room]
+		if !ok {
+			return nil, fmt.Errorf("Error moving player %v: room %v not returned from manager!", playerId, player.Room)
+		}
+		newRoomId, ok := room.Exits[direction]
+		if !ok {
+			// TODO change to standard error variable, which caller can check
+			return nil, fmt.Errorf("Error moving player %v room %v: no room to the %v!", playerId, player.Room, direction.String())
+		}
+		newRoom, ok := data.rooms[newRoomId]
+		if !ok {
+			return nil, fmt.Errorf("Error moving player %v: new room %v not returned from manager!", playerId, player.Room)
+		}
+
+		player.Room = newRoom.Id()
 		delete(room.Players, player.Id())
 		newRoom.Players[player.Id()] = true
 		player.Write("You move out to the " + direction.String() + ".")
 		room.Write(ToProper(player.Name())+" moves out to the "+direction.String()+".", *world.players, player.Name())
 		newRoom.Write(ToProper(player.Name())+" enters from the "+direction.reverse().String()+".", *world.players, player.Name())
 		player.Write(newRoom.PrintBrief(world, player.Name()))
-		ReleaseThings(sets)
-		break
+		return nil, nil
 	}
-	return true
+
+	err := world.Do([]DoFunc{getPlayer, getPlayerRoom, getRoomRoom, move})
+
+	if err != nil {
+		fmt.Printf("ERROR MOVING: %v\n", err)
+	}
+	return err != nil
 }

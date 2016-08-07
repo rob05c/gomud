@@ -5,8 +5,8 @@ main.go initializes the world and starts listening for connections
 package main
 
 import (
-	"database/sql"
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -22,14 +22,6 @@ func (i identifier) String() string {
 const invalidIdentifier = identifier(-1)
 
 const endl = "\r\n"
-
-type World struct {
-	rooms   *RoomManager
-	players *PlayerManager
-	items   *ItemManager
-	npcs    *NpcManager
-	db      *sql.DB
-}
 
 type ChainTime uint64
 
@@ -50,6 +42,9 @@ func NewWorld() *World {
 		for {
 			NextChainTime <- chainTime
 			chainTime++
+			if chainTime == math.MaxInt64 {
+				panic("Max chaintime reached")
+			}
 		}
 	}()
 

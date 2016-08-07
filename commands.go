@@ -129,7 +129,7 @@ func walkNorth(args []string, playerId identifier, world *World) {
 }
 
 func walkEast(args []string, playerId identifier, world *World) {
-	walk(west, playerId, world)
+	walk(east, playerId, world)
 }
 
 func walkWest(args []string, playerId identifier, world *World) {
